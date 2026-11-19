@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 150 17% 5%;
+    --card: 0 0% 100%;
+    --card-foreground: 150 17% 5%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 150 17% 5%;
+    --primary: 145 98% 44%;
+    --primary-foreground: 150 30% 6%;
+    --secondary: 144 45% 93%;
+    --secondary-foreground: 150 17% 8%;
+    --muted: 144 30% 95%;
+    --muted-foreground: 150 8% 40%;
+    --accent: 144 45% 93%;
+    --accent-foreground: 150 17% 8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 150 14% 89%;
+    --input: 150 14% 85%;
+    --ring: 145 98% 40%;
+    --radius: 0.75rem;
+    --brand: 145 98% 44%;
+    --brand-deep: 145 100% 34%;
+    --orange: 36 79% 57%;
+    --purple: 258 45% 55%;
+    --sidebar-background: 150 20% 97%;
+    --sidebar-foreground: 150 10% 30%;
+    --sidebar-primary: 145 98% 40%;
+    --sidebar-primary-foreground: 150 30% 6%;
+    --sidebar-accent: 144 45% 93%;
+    --sidebar-accent-foreground: 150 17% 8%;
+    --sidebar-border: 150 14% 89%;
+    --sidebar-ring: 145 98% 40%;
+  }
+
+  .dark {
+    --background: 150 26% 5%;
+    --foreground: 140 20% 96%;
+    --card: 152 22% 8%;
+    --card-foreground: 140 20% 96%;
+    --popover: 152 24% 7%;
+    --popover-foreground: 140 20% 96%;
+    --primary: 145 98% 44%;
+    --primary-foreground: 150 40% 5%;
+    --secondary: 152 18% 13%;
+    --secondary-foreground: 140 20% 96%;
+    --muted: 152 16% 12%;
+    --muted-foreground: 145 10% 62%;
+    --accent: 152 18% 14%;
+    --accent-foreground: 140 20% 96%;
+    --destructive: 0 62% 47%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 152 16% 15%;
+    --input: 152 16% 18%;
+    --ring: 145 98% 44%;
+    --sidebar-background: 152 26% 6%;
+    --sidebar-foreground: 145 10% 70%;
+    --sidebar-primary: 145 98% 44%;
+    --sidebar-primary-foreground: 150 40% 5%;
+    --sidebar-accent: 152 18% 13%;
+    --sidebar-accent-foreground: 140 20% 96%;
+    --sidebar-border: 152 16% 14%;
+    --sidebar-ring: 145 98% 44%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+  ::selection {
+    background: hsl(var(--brand) / 0.3);
+  }
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.25);
+    border-radius: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: "Space Grotesk", "Inter", sans-serif;
+  }
+  .text-brand {
+    color: hsl(var(--brand));
+  }
+  .bg-brand {
+    background-color: hsl(var(--brand));
+  }
+  .text-orange-brand {
+    color: hsl(var(--orange));
+  }
+  .bg-orange-brand {
+    background-color: hsl(var(--orange));
+  }
+  .text-purple-brand {
+    color: hsl(var(--purple));
+  }
+  .bg-purple-brand {
+    background-color: hsl(var(--purple));
+  }
+  .border-brand {
+    border-color: hsl(var(--brand));
+  }
+  .ring-brand {
+    --tw-ring-color: hsl(var(--brand));
+  }
+  .glow-brand {
+    box-shadow: 0 0 24px hsl(var(--brand) / 0.35), 0 0 64px hsl(var(--brand) / 0.15);
+  }
+  .label-caps {
+    @apply text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground;
+  }
+  .card-surface {
+    @apply rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_8px_24px_-12px_rgb(0_0_0/0.08)];
+  }
+  .dark .card-surface {
+    @apply shadow-none;
+    border-color: hsl(152 16% 15%);
+  }
+  .grid-bg {
+    background-image: linear-gradient(hsl(var(--foreground) / 0.04) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--foreground) / 0.04) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
