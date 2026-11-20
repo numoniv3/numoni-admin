@@ -25,7 +25,9 @@ function NavList({ items, base, onNavigate }: { items: NavItem[]; base: string; 
     <nav className="flex flex-col gap-1 px-3">
       {items.map((item) => {
         const full = base + item.to
-        const active = item.end ? pathname === full : pathname.startsWith(full)
+        // A section is active on its own page and its sub-pages (`/store/…`), not on a
+        // sibling that merely shares the prefix (`/store` vs `/storefront`).
+        const active = pathname === full || (!item.end && pathname.startsWith(`${full}/`))
         const Icon = item.icon
         return (
           <Link

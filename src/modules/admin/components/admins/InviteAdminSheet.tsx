@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { splitName } from '@/lib/api/numoni/parse'
 import type { AdminInvite } from '@/lib/api/numoni/types/admin'
-import { isPhone, toLocalPhone } from '@/lib/auth/phone'
+import { isPhone } from '@/lib/auth/phone'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { useInviteAdmin } from '../../api/useAdminMutations'
 
 /** `POST /admin/invite` — the invitee completes sign-in with a phone OTP. */
@@ -20,7 +21,7 @@ export function InviteAdminSheet({ open, onOpenChange }: { open: boolean; onOpen
   const valid = name.trim().split(/\s+/).length >= 2 && email.includes('@') && isPhone(phone)
 
   const send = () =>
-    invite.mutate({ ...splitName(name), email: email.trim(), phone: toLocalPhone(phone), role }, {
+    invite.mutate({ ...splitName(name), email: email.trim(), phone, role }, {
       onSuccess: () => {
         onOpenChange(false)
         setName(''); setEmail(''); setPhone(''); setRole('admin')
@@ -40,7 +41,7 @@ export function InviteAdminSheet({ open, onOpenChange }: { open: boolean; onOpen
         </div>
         <div>
           <label className="label-caps">Phone</label>
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0803 555 0142" inputMode="tel" className="mt-1.5 tnum" />
+          <PhoneInput value={phone} onChange={setPhone} className="mt-1.5" />
         </div>
         <div>
           <label className="label-caps">Role</label>

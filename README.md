@@ -31,7 +31,8 @@ required. Add this app's domain to the Gateway's CORS allowlist.
 
 `src/lib/api/numoni/` is the typed client for the whole nuMoni Gateway
 (`specs/numoni.json`, v0.8.0): auth journey, profiles, credentials, admin accounts,
-workspaces, Wallet MS and Point MS. See `src/lib/http/README.md` for how calls,
+workspaces, Wallet MS, Point MS, Reward MS, Card MS, Compliance MS, Create-App MS
+and Marketplace MS. See `src/lib/http/README.md` for how calls,
 fixtures, auth and sessions work.
 
 `.claude/skills/numoni-conventions/SKILL.md` has the code conventions.

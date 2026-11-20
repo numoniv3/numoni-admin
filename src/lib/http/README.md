@@ -39,8 +39,8 @@ shows, and every response is a fresh object. A real call issues
 fixture and the real call sit side by side in one function, so swapping
 backends is configuration, not a rewrite.
 
-**Live endpoints today** (Gateway v0.7.0), listed in `GATEWAY_ENDPOINTS`
-with `{id}` for path parameters:
+**Live endpoints today** (Gateway v0.8.0), listed in `GATEWAY_ENDPOINTS`
+with `{param}` for path parameters:
 
 | Area | Endpoints | Used by |
 |---|---|---|
@@ -51,6 +51,23 @@ with `{id}` for path parameters:
 | Uploads | `POST media/upload` | KYC Tier 3 documents |
 | Policies | `POST policies/sync` | after sign-in reaches the dashboard, and after a KYC change (`session-effects.ts`) |
 | Admin | `admin/admins`, `admin/invite`, `admin/users`, `admin/users/{id}`, `…/status`, `…/limits` | Admins & Roles, Accounts |
+| Wallet MS / Point MS | `wallet/*`, `points/*` | wallet screens, Treasury |
+| Reward MS | `rewards/*` (40) | merchant/brand/enterprise Rewards + Campaigns (wizard, budget, launch, pause/resume/stop, ledger); admin Reward Engine (campaigns across merchants, override, raffle, guardrails, queues & sweeps, lookups) |
+| Card MS | `card/*` (20) | merchant/brand/enterprise/reseller Reward Cards (mint, give, load, unlock + charge, reverse, suspend, ledger); consumer & brand app cards (my cards, activate); till redemption by card number |
+| Compliance MS | `compliance/*` (46) | business KYC on every console’s Compliance page (info, survey, owners, directors + liveness, documents, submit); consumer Profile → identity verification; admin KYC & Compliance (queues, user file, documents, AML, review, sanctions, reports) |
+| Create-App MS | `create-app/*` (20 of 22) | merchant & enterprise White-label Apps (create, edit, submit, keys, transactions, drive); admin approvals |
+| Marketplace MS | `marketplace/*` (132) | merchant Online Store (stores, products, orders, customers, reviews, settings, subscription); consumer Commerce & brand app Shop (discover, store pages, cart, checkout, orders, wishlist, reviews, report); admin Marketplace (dashboard, sales, stores, owners, reports, finance, banners, taxonomy, settings, audit) |
+
+The microservice modules (`rewards`, `card`, `compliance`, `create-app`,
+`marketplace*`) are generated from the spec's schemas: `types/<mod>.ts` holds the
+DTOs, `mocks/<mod>.ts` fixtures built from the spec's examples, and
+`<mod>.api.ts` one function per operation, exported namespaced
+(`rewardsApi.startCampaign(id)`). Their screens live in `src/modules/ms` — the same
+files in every app; each app’s routes pick the screens its users need. Not wired on
+purpose: `rewards/campaigns/evaluate` + `…/reverse` (checkout services only) and
+`create-app/apps/special/*` (partner API key). Where the spec leaves a response untyped
+(all of Compliance and Create-App, most Marketplace reads) the function returns
+`unknown` — parse it with `parse.ts` where a screen reads it.
 
 Workspace endpoints return the frontend type their `*.api.ts` function
 names (the Gateway spec references it as `ApiEnvelope<MerchantWorkspace>`
@@ -83,12 +100,11 @@ classes) are keyed by id in the fixture and mapped in the component; see
 
 ## The contract: `specs/numoni.json`
 
-`npm run api:spec` regenerates `specs/numoni.json` (OpenAPI 3.1, JSON)
-from this folder. Every exported function with an `@endpoint METHOD /path` JSDoc
-tag becomes an operation, and its `Promise<T>` return type becomes the response
-schema, wrapped in `ApiEnvelope`. Hand the YAML to the backend team. It's
-generated, so never edit it by hand. Two API types with the same name fail the
-generation, because schemas are keyed by name.
+`specs/numoni.json` is the Gateway's own OpenAPI spec. Refresh it from
+`https://numoni-gateway-ms.fly.dev/docs/swagger.json`; never generate it from
+this folder or edit it by hand. Every operation the client calls has a function
+here tagged `@endpoint METHOD /path`, so `grep @endpoint` against the spec's
+paths shows what's missing after a refresh.
 
 ## Authentication
 
@@ -162,4 +178,4 @@ toast on both outcomes, and invalidate every query key the write affects.
 4. Add the function to `<domain>.api.ts`. Give it a one-line JSDoc summary and an
    `@endpoint GET /path/{param}` tag, and return `apiGet(path, () => fixture)`.
 5. Add a key to `query-keys.ts` and a `use<X>Query` hook in the module's `api/`.
-6. `npm run api:spec`, then commit the regenerated `specs/numoni.json`.
+6. Add the path to `GATEWAY_ENDPOINTS` once the Gateway serves it.

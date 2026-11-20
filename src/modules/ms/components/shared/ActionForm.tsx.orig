@@ -1,0 +1,142 @@
+'use client'
+
+import { useState, type ReactNode } from 'react'
+import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import { FormSheet } from '@/components/ui/form-sheet'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Switch } from '@/components/ui/switch'
+import { Textarea } from '@/components/ui/textarea'
+
+/*
+ * A form built from field specs — every create/edit sheet for the
+ * microservices uses it. Values come out typed by `kind`: numbers, booleans,
+ * ISO dates, File / File[], string lists, parsed JSON. Blank fields are left out.
+ */
+
+export type FieldKind = 'text' | 'textarea' | 'number' | 'select' | 'switch' | 'date' | 'file' | 'files' | 'list' | 'json'
+
+export interface Field {
+  key: string
+  label: string
+  kind?: FieldKind
+  options?: (string | { value: string; label: string })[]
+  required?: boolean
+  placeholder?: string
+  hint?: string
+  /** Spans both columns. */
+  wide?: boolean
+  accept?: string
+}
+
+export type Values = Record<string, unknown>
+
+function toInput(f: Field, v: unknown): unknown {
+  if (v === undefined || v === null) return f.kind === 'switch' ? false : f.kind === 'files' ? [] : ''
+  if (f.kind === 'list' && Array.isArray(v)) return v.join(', ')
+  if (f.kind === 'json') return typeof v === 'string' ? v : JSON.stringify(v, null, 2)
+  if (f.kind === 'date' && typeof v === 'string') return v.slice(0, 10)
+  if (f.kind === 'file' || f.kind === 'files' || f.kind === 'switch') return v
+  return String(v)
+}
+
+/** Form state → request values; returns an error message instead when a field is invalid. */
+function build(fields: Field[], state: Values): Values | string {
+  const out: Values = {}
+  for (const f of fields) {
+    const v = state[f.key]
+    const empty = v === '' || v === undefined || v === null || (Array.isArray(v) && !v.length)
+    if (empty) { if (f.required) return `${f.label} is required`; continue }
+    switch (f.kind) {
+      case 'number': { const n = Number(String(v).replace(/,/g, '')); if (!Number.isFinite(n)) return `${f.label} must be a number`; out[f.key] = n; break }
+      case 'date': out[f.key] = new Date(`${v}T00:00:00.000Z`).toISOString(); break
+      case 'list': out[f.key] = String(v).split(/[,\n]/).map((s) => s.trim()).filter(Boolean); break
+      case 'json': try { out[f.key] = JSON.parse(String(v)) } catch { return `${f.label} isn’t valid JSON` } break
+      default: out[f.key] = typeof v === 'string' ? v.trim() : v
+    }
+  }
+  return out
+}
+
+interface ActionFormProps {
+  fields: Field[]
+  initial?: Values
+  submitLabel: string
+  pending?: boolean
+  /** Button text while `pending` (e.g. upload progress); defaults to “Working…”. */
+  pendingLabel?: string
+  onSubmit: (values: Values) => void
+  children?: ReactNode
+}
+
+export function ActionForm({ fields, initial = {}, submitLabel, pending, pendingLabel = 'Working…', onSubmit, children }: ActionFormProps) {
+  const [state, setState] = useState<Values>(() => Object.fromEntries(fields.map((f) => [f.key, toInput(f, initial[f.key])])))
+  const set = (k: string, v: unknown) => setState((s) => ({ ...s, [k]: v }))
+  const submit = () => {
+    const values = build(fields, state)
+    if (typeof values === 'string') return toast.error(values)
+    onSubmit(values)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        {fields.map((f) => {
+          const v = state[f.key]
+          const opts = (f.options ?? []).map((o) => (typeof o === 'string' ? { value: o, label: o.replace(/_/g, ' ').toLowerCase().replace(/^\w/, (c) => c.toUpperCase()) } : o))
+          const wide = f.wide || ['textarea', 'json', 'files'].includes(f.kind ?? '')
+          return (
+            <div key={f.key} className={wide ? 'col-span-2' : undefined}>
+              <label className="text-xs text-muted-foreground">{f.label}{f.required ? '' : <span className="opacity-60"> · optional</span>}</label>
+              <div className="mt-1">
+                {f.kind === 'textarea' || f.kind === 'json' ? (
+                  <Textarea value={String(v)} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder} className={`min-h-[80px] ${f.kind === 'json' ? 'font-mono text-xs' : ''}`} />
+                ) : f.kind === 'select' ? (
+                  <Select value={String(v) || undefined} onValueChange={(x) => set(f.key, x)}>
+                    <SelectTrigger><SelectValue placeholder={f.placeholder ?? 'Pick…'} /></SelectTrigger>
+                    <SelectContent>{opts.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+                  </Select>
+                ) : f.kind === 'switch' ? (
+                  <div className="h-9 flex items-center"><Switch checked={v === true} onCheckedChange={(x) => set(f.key, x)} /></div>
+                ) : f.kind === 'file' || f.kind === 'files' ? (
+                  <Input type="file" accept={f.accept} multiple={f.kind === 'files'} onChange={(e) => set(f.key, f.kind === 'files' ? Array.from(e.target.files ?? []) : e.target.files?.[0])} />
+                ) : (
+                  <Input
+                    type={f.kind === 'date' ? 'date' : 'text'}
+                    inputMode={f.kind === 'number' ? 'decimal' : undefined}
+                    value={String(v)}
+                    onChange={(e) => set(f.key, e.target.value)}
+                    placeholder={f.placeholder}
+                    className={f.kind === 'number' ? 'tnum' : undefined}
+                  />
+                )}
+              </div>
+              {f.hint && <p className="text-[11px] text-muted-foreground mt-1">{f.hint}</p>}
+            </div>
+          )
+        })}
+      </div>
+      {children}
+      <Button onClick={submit} disabled={pending} className="w-full h-11 rounded-full bg-brand text-black font-bold hover:bg-brand/90">
+        {pending ? pendingLabel : submitLabel}
+      </Button>
+    </div>
+  )
+}
+
+interface ActionSheetProps extends ActionFormProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  sub?: string
+}
+
+/** `ActionForm` in the platform's right-side sheet. Remounts per open, so `initial` is fresh. */
+export function ActionSheet({ open, onOpenChange, title, sub, ...form }: ActionSheetProps) {
+  return (
+    <FormSheet open={open} onOpenChange={onOpenChange} title={title} sub={sub} wide>
+      <div className="pb-2">{open && <ActionForm {...form} />}</div>
+    </FormSheet>
+  )
+}

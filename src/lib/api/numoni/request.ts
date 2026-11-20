@@ -2,6 +2,7 @@ import { axiosClient } from '@/lib/axios'
 import { API_MODE, MOCK_LATENCY_MS } from '@/lib/config'
 import { isGatewayPath } from './endpoints'
 import { toQuery } from './envelope'
+import { shrinkFormImages } from './images'
 
 export { API_MODE, type ApiMode } from '@/lib/config'
 
@@ -60,12 +61,17 @@ function withDefaults<T>(data: unknown, fixture: () => T, path: string): T {
 }
 
 /**
- * The payload of a response. Workspace endpoints wrap it in `ApiEnvelope`
- * (`{ success, message, data }`); the Auth routes the Gateway proxies may
- * return it bare, or as `{ data }`.
+ * The payload of a response. Services wrap it differently: workspace and Reward
+ * endpoints as `{ success, message, data }`, Marketplace as
+ * `{ status: "success", message, data }`, Auth routes bare or as `{ data }`.
+ * An object whose keys are all envelope keys is unwrapped; a payload that
+ * merely has a `data` field among others (e.g. `{ data, count, currentpage }`) isn't.
  */
+const ENVELOPE_KEYS = new Set(['data', 'success', 'status', 'message', 'timestamp', 'meta', 'statusCode'])
+
 export function unwrap(body: unknown): unknown {
-  return isObj(body) && 'data' in body && (Object.keys(body).length === 1 || 'success' in body) ? body.data : body
+  if (!isObj(body) || !('data' in body)) return body
+  return 'success' in body || Object.keys(body).every((k) => ENVELOPE_KEYS.has(k)) ? body.data : body
 }
 
 /**
@@ -94,6 +100,46 @@ export interface SendOptions {
   /** Extra request headers, e.g. `Idempotency-Key`. */
   headers?: Record<string, string>
   params?: Record<string, unknown>
+  /** `body` is `FormData`: let the browser set the multipart boundary. */
+  multipart?: boolean
+  /** Upload progress, 0–1 (multipart calls). */
+  onProgress?: (fraction: number) => void
+  /** Overrides the client's timeout (ms); multipart calls default to `UPLOAD_TIMEOUT_MS`. */
+  timeout?: number
+}
+
+/**
+ * Uploads get far longer than the client's 15 s: a logo or banner on a slow
+ * mobile connection can take a minute even after it's been shrunk.
+ */
+export const UPLOAD_TIMEOUT_MS = 120_000
+
+const progress = (cb?: (fraction: number) => void) =>
+  cb ? (e: { loaded: number; total?: number }) => cb(e.total ? Math.min(1, e.loaded / e.total) : 0) : undefined
+
+/** Parser for payloads the spec types: the response is taken as `T`. */
+export const cast = <T>(raw: unknown): T => raw as T
+
+/** Parser for payloads the spec leaves untyped. */
+export const identity = (raw: unknown): unknown => raw
+
+/**
+ * A typed multipart body as `FormData`: files and blobs as parts, arrays as
+ * repeated fields, objects as JSON. Empty values are left out.
+ */
+export function toFormData(body: object): FormData {
+  const form = new FormData()
+  const append = (key: string, value: unknown) => {
+    if (value === undefined || value === null) return
+    if (value instanceof Blob) form.append(key, value)
+    else if (typeof value === 'object') form.append(key, JSON.stringify(value))
+    else form.append(key, String(value))
+  }
+  for (const [key, value] of Object.entries(body)) {
+    if (Array.isArray(value) && value.every((v) => v instanceof Blob)) value.forEach((v) => append(key, v))
+    else append(key, value)
+  }
+  return form
 }
 
 /**
@@ -101,7 +147,7 @@ export interface SendOptions {
  * path is mocked, `fixture` stands in for the response (it receives the body).
  */
 export async function apiSend<T>(
-  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
   path: string,
   body: unknown,
   parse: (raw: unknown) => T,
@@ -109,12 +155,16 @@ export async function apiSend<T>(
   opts: SendOptions = {},
 ): Promise<T> {
   if (isMocked(path)) return parse(await mockResponse(() => fixture(body)))
+  // Multipart: shrink pictures first (see `images.ts`), then allow a long upload and report progress.
+  const data = opts.multipart && body instanceof FormData ? await shrinkFormImages(body) : body
   const response = await axiosClient.request<unknown>({
     method,
     url: path,
-    data: body,
-    headers: opts.headers,
+    data,
+    headers: opts.multipart ? { ...opts.headers, 'Content-Type': undefined } : opts.headers,
     params: opts.params ? toQuery(opts.params) : undefined,
+    timeout: opts.timeout ?? (opts.multipart ? UPLOAD_TIMEOUT_MS : undefined),
+    onUploadProgress: progress(opts.onProgress),
   })
   return parse(unwrap(response.data))
 }
@@ -123,9 +173,13 @@ export async function apiSend<T>(
 export const idempotent = (key: string = crypto.randomUUID()): SendOptions => ({ headers: { 'Idempotency-Key': key } })
 
 /** `multipart/form-data` POST — file uploads. */
-export async function apiUpload<T>(path: string, form: FormData, parse: (raw: unknown) => T, fixture: () => unknown): Promise<T> {
+export async function apiUpload<T>(path: string, form: FormData, parse: (raw: unknown) => T, fixture: () => unknown, opts: Pick<SendOptions, 'onProgress' | 'timeout'> = {}): Promise<T> {
   if (isMocked(path)) return parse(await mockResponse(fixture))
-  // Let the browser set the multipart boundary.
-  const response = await axiosClient.post<unknown>(path, form, { headers: { 'Content-Type': undefined } })
+  // Let the browser set the multipart boundary; allow a long upload.
+  const response = await axiosClient.post<unknown>(path, form, {
+    headers: { 'Content-Type': undefined },
+    timeout: opts.timeout ?? UPLOAD_TIMEOUT_MS,
+    onUploadProgress: progress(opts.onProgress),
+  })
   return parse(unwrap(response.data))
 }

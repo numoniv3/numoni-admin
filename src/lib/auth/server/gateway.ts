@@ -39,16 +39,26 @@ function decodeBody(raw: Buffer, encoding: string | undefined): string {
   return raw.toString('utf8')
 }
 
+/**
+ * How long a journey step may take. Signup and login create the account and
+ * send the OTP through the Gateway's downstream services, which can take well
+ * over 15 s while a sleeping service wakes up. Keep under the route's
+ * `maxDuration` (`app/api/auth/[action]/route.ts`).
+ */
+const GATEWAY_TIMEOUT_MS = 45_000
+
+class GatewayTimeout extends Error {}
+
 /** A raw HTTP(S) request, so the body can be decoded leniently (see `decodeBody`). */
 function send(url: URL, method: string, headers: Record<string, string>, payload?: string): Promise<{ status: number; text: string }> {
   return new Promise((resolve, reject) => {
-    const req = (url.protocol === 'http:' ? httpRequest : httpsRequest)(url, { method, headers, timeout: 15_000 }, (res) => {
+    const req = (url.protocol === 'http:' ? httpRequest : httpsRequest)(url, { method, headers, timeout: GATEWAY_TIMEOUT_MS }, (res) => {
       const chunks: Buffer[] = []
       res.on('data', (c: Buffer) => chunks.push(c))
       res.on('end', () => resolve({ status: res.statusCode ?? 502, text: decodeBody(Buffer.concat(chunks), res.headers['content-encoding']?.toLowerCase()) }))
       res.on('error', reject)
     })
-    req.on('timeout', () => req.destroy(new Error('Gateway request timed out')))
+    req.on('timeout', () => req.destroy(new GatewayTimeout(`Gateway request timed out after ${GATEWAY_TIMEOUT_MS / 1000}s`)))
     req.on('error', reject)
     if (payload !== undefined) req.write(payload)
     req.end()
@@ -73,8 +83,11 @@ export async function callGateway(path: string, init: { method: string; body?: u
     }
     return { status: res.status, body }
   } catch (error) {
-    // Shows in the Vercel function logs; the browser only gets the generic 502.
+    // Shows in the Vercel function logs; the browser only gets the generic message.
     console.error(`[auth] ${init.method} ${GATEWAY_URL}${path} failed:`, error)
+    if (error instanceof GatewayTimeout) {
+      return { status: 504, body: { statusCode: 504, message: 'The nuMoni Gateway took too long to respond — please try again', error: 'Gateway Timeout' } }
+    }
     return { status: 502, body: { statusCode: 502, message: 'The nuMoni Gateway is unreachable', error: 'Bad Gateway' } }
   }
 }

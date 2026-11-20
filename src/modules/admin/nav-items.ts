@@ -1,7 +1,6 @@
 import {
   LayoutDashboard, Store, Users, ShieldCheck, Landmark, Megaphone, SlidersHorizontal,
-  Network, LifeBuoy, BookOpen, Split, KeyRound, ScrollText, Settings, DatabaseZap, Gift, UserCog,
-} from 'lucide-react'
+  Network, LifeBuoy, BookOpen, Split, KeyRound, ScrollText, Settings, DatabaseZap, Gift, UserCog, ShoppingBag, AppWindow, Coins } from 'lucide-react'
 import type { NavItem } from '@/components/layout/dash-shell'
 
 /** Single source of truth for the Control Tower sidebar and the ⌘K "Pages" group. */
@@ -15,8 +14,11 @@ export const ADMIN_NAV: NavItem[] = [
   { to: '/accounts', label: 'Accounts', icon: UserCog },
   { to: '/kyc', label: 'KYC & Compliance', icon: ShieldCheck },
   { to: '/treasury', label: 'Treasury & Settlement', icon: Landmark },
+  { to: '/money-core', label: 'Money Core', icon: Coins },
   { to: '/campaigns', label: 'Campaigns', icon: Megaphone },
   { to: '/rewards', label: 'Rewards', icon: Gift },
+  { to: '/marketplace', label: 'Marketplace', icon: ShoppingBag },
+  { to: '/apps', label: 'White-label Apps', icon: AppWindow },
   { to: '/pricing', label: 'Pricing & Rates', icon: SlidersHorizontal },
   { to: '/resellers', label: 'Resellers', icon: Network },
   { to: '/disputes', label: 'Disputes & Support', icon: LifeBuoy },

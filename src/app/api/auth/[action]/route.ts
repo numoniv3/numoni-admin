@@ -3,6 +3,9 @@ import { isAuthAction } from '@/lib/auth/actions'
 import { errorOutcome } from '@/lib/auth/server/gateway'
 import { SESSION_COOKIE, respond, runAuthAction } from '@/lib/auth/server/session'
 
+/** Signup / login wait on OTP delivery downstream — see `GATEWAY_TIMEOUT_MS`. */
+export const maxDuration = 60
+
 /** `POST /api/auth/{action}` — one Gateway journey step; see `AUTH_ACTIONS`. */
 export async function POST(request: NextRequest, ctx: RouteContext<'/api/auth/[action]'>) {
   const { action } = await ctx.params

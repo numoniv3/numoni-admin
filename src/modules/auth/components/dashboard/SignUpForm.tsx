@@ -4,7 +4,8 @@ import { useState } from 'react'
 import { ArrowRight, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { isEmail, isPhone, toLocalPhone } from '@/lib/auth/phone'
+import { isEmail, isPhone } from '@/lib/auth/phone'
+import { PhoneInput } from '@/components/ui/phone-input'
 import type { Persona } from '@/lib/auth/personas'
 import { FormError } from '../shared/FormError'
 import type { AuthFlow } from '../../lib/use-auth-flow'
@@ -28,7 +29,7 @@ export function SignUpForm({ flow, persona }: { flow: AuthFlow; persona: Persona
   const submit = () =>
     flow.signUp({
       businessName: businessName.trim(),
-      phone: toLocalPhone(phone),
+      phone,
       email: email.trim().toLowerCase(),
       referralCode: referralCode.trim() || undefined,
     })
@@ -45,7 +46,7 @@ export function SignUpForm({ flow, persona }: { flow: AuthFlow; persona: Persona
         </div>
         <div>
           <label htmlFor="su-phone" className="label-caps">Phone</label>
-          <Input id="su-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0812 440 9021" inputMode="tel" autoComplete="tel" className="mt-1.5 h-11 tnum" />
+          <PhoneInput id="su-phone" value={phone} onChange={setPhone} placeholder="812 440 9021" className="mt-1.5 h-11" />
         </div>
         <div>
           <label htmlFor="su-email" className="label-caps">Email</label>
