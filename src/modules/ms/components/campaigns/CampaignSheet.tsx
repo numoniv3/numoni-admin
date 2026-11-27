@@ -61,7 +61,7 @@ export function CampaignSheet({ sheet, enums, campaigns }: CampaignSheetProps) {
 
         {step === 0 && <DetailsStep campaign={campaign} channels={enums.campaignChannels} onCreated={created} />}
         {campaign && step === 1 && <AudienceStep key={campaign.id} campaign={campaign} channels={enums.campaignChannels} onDone={next} />}
-        {campaign && step === 2 && <RewardsStep campaign={campaign} others={campaigns} onDone={next} />}
+        {campaign && step === 2 && <RewardsStep campaign={campaign} onDone={next} />}
         {campaign && step === 3 && <BudgetStep key={campaign.id} campaign={campaign} fundingSources={enums.fundingSources} onDone={next} />}
         {campaign && step === 4 && <LaunchStep campaign={campaign} />}
       </div>

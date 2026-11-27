@@ -1,7 +1,7 @@
 import { NUMONI_ENDPOINTS } from './endpoints'
 import * as fx from './mocks/rewards'
 import { apiGet, apiSend, cast } from './request'
-import type { AllCampaignsViewDataDto, AllEnumsCatalogDto, CampaignBudgetResponseDto, CampaignEvaluationResponseDto, CampaignGuardrailResponseDto, CampaignLedgerResponseDto, CampaignResponseDto, CouponSweepResultDto, EngagementSweepResultDto, EscrowAuditResultDto, OptInResponseDto, ProgressArchivalResultDto, QueueStatusResponseDto, QueueSweepResultDto, RaffleDrawResultDto, RewardAddCampaignRewardBody, RewardApiResponseDto, RewardCreateCampaignBody, RewardEvaluateCampaignsBody, RewardGetCampaignChannelsResult, RewardGetCampaignStatusesResult, RewardGetEventKindsResult, RewardGetFundingSourcesResult, RewardGetGamificationTriggersResult, RewardGetGiftCategoriesResult, RewardGetKycTiersResult, RewardGetPrizeTypesResult, RewardGetRewardDirectionsResult, RewardGetRewardRuleTypesResult, RewardGetWizardStepsResult, RewardListCampaignRewardsResult, RewardListCampaignsParams, RewardOptInBody, RewardOverrideCampaignBody, RewardResponseDto, RewardReversalResponseDto, RewardReverseEvaluationBody, RewardSetCampaignAudienceBody, RewardSetCampaignBudgetBody, RewardSetCampaignRewardsBody, RewardUpdateGuardrailsBody, UpdateRewardDto } from './types/rewards'
+import type { AllCampaignsViewDataDto, AllEnumsCatalogDto, CampaignBudgetResponseDto, CampaignEvaluationResponseDto, CampaignGuardrailResponseDto, CampaignLedgerResponseDto, CampaignResponseDto, CouponSweepResultDto, DeleteRewardTemplateResultDto, EngagementSweepResultDto, EscrowAuditResultDto, OptInResponseDto, ProgressArchivalResultDto, QueueStatusResponseDto, QueueSweepResultDto, RaffleDrawResultDto, ReplayOutboxResultDto, RewardAddCampaignRewardBody, RewardApiResponseDto, RewardCreateCampaignBody, RewardCreateRewardTemplateBody, RewardEvaluateCampaignsBody, RewardGetCampaignChannelsResult, RewardGetCampaignStatusesResult, RewardGetEventKindsResult, RewardGetFundingSourcesResult, RewardGetGamificationTriggersResult, RewardGetGiftCategoriesResult, RewardGetKycTiersResult, RewardGetPrizeTypesResult, RewardGetRewardDirectionsResult, RewardGetRewardRuleTypesResult, RewardGetWizardStepsResult, RewardLinkRewardTemplateBody, RewardListCampaignRewardsResult, RewardListCampaignsParams, RewardListRewardTemplatesParams, RewardListRewardTemplatesResult, RewardOptInBody, RewardOverrideCampaignBody, RewardReplayOutboxBody, RewardResponseDto, RewardReversalResponseDto, RewardReverseEvaluationBody, RewardSetCampaignAudienceBody, RewardSetCampaignBudgetBody, RewardSetCampaignRewardsBody, RewardSyncRewardTemplateBody, RewardTemplateResponseDto, RewardUpdateGuardrailsBody, UpdateRewardDto, UpdateRewardTemplateDto } from './types/rewards'
 
 /*
  * Reward MS through the Gateway (`/rewards/*`). Exported from the barrel as
@@ -112,7 +112,7 @@ export function getFundingSources(): Promise<RewardGetFundingSourcesResult> {
 
 /**
  * Get KYC Tier options
- * Lists the KYC tiers (T1, T2, T3) used for eligibility rules.
+ * Lists the KYC tiers (T0, T1, T2, T3) used for eligibility rules.
  * @endpoint GET /rewards/enums/kyc-tiers
  */
 export function getKycTiers(): Promise<RewardGetKycTiersResult> {
@@ -182,6 +182,28 @@ export function listCampaignRewards(campaignId: string): Promise<RewardListCampa
 }
 
 /**
+ * Step 3: Link a Reward Template from your library
+ * Copies a template from GET /reward-templates into this campaign as its own reward (templateId and templateVersion are recorded). Later edits to the template do not change this copy. A template can be linked once per campaign. Optional `overrides` replace only amounts: prizeValue, maxRewardPerUser, maxRewardPerTxn, minSpend.
+ * **Blocked rule pairs** (checked against the rewards already on the campaign):
+ * - **FIRST_TIME_CUSTOMERS** + **REACTIVATION_DORMANCY**: rejected with 400.
+ * - **FIRST_TIME_CUSTOMERS** + **DURATION_OF_PATRONAGE**: rejected with 400.
+ * - **BY_FREQUENCY** + **REACTIVATION_DORMANCY**: rejected with 400 unless frequencyWindowDays is greater than inactivityDays (both default to 30, so the default pair is rejected).
+ * @endpoint POST /rewards/campaigns/{campaignId}/rewards/from-template
+ */
+export function linkRewardTemplate(campaignId: string, body: RewardLinkRewardTemplateBody): Promise<RewardResponseDto> {
+  return apiSend('POST', E.campaignRewardsFromTemplate(campaignId), body, cast<RewardResponseDto>, () => fx.rewardResponse)
+}
+
+/**
+ * Step 3: Update a linked reward to its template's latest version
+ * Re-copies the template into this campaign reward. Allowed only while the campaign is DRAFT, SCHEDULED or PAUSED, so a live campaign never changes payout silently. Send `overrides` to replace them, or omit to keep the ones chosen at link time.
+ * @endpoint POST /rewards/campaigns/{campaignId}/rewards/{rewardId}/sync-template
+ */
+export function syncRewardTemplate(campaignId: string, rewardId: string, body: RewardSyncRewardTemplateBody): Promise<RewardResponseDto> {
+  return apiSend('POST', E.campaignRewardSyncTemplate(campaignId, rewardId), body, cast<RewardResponseDto>, () => fx.rewardResponse)
+}
+
+/**
  * Step 3: Update a Specific Reward
  * Partial update. Prize and rule fields are checked the same way as on create, against the merged reward.
  * **Blocked rule pairs** (checked against the other rewards on the campaign):
@@ -196,7 +218,7 @@ export function updateCampaignReward(campaignId: string, rewardId: string, body:
 
 /**
  * Step 3: Delete a Specific Reward
- * Removes one reward from a campaign (wizard step 3).
+ * Removes the reward from this campaign. If it was linked from a template, the template stays in your library.
  * @endpoint DELETE /rewards/campaigns/{campaignId}/rewards/{rewardId}
  */
 export function deleteCampaignReward(campaignId: string, rewardId: string): Promise<RewardApiResponseDto> {
@@ -258,6 +280,51 @@ export function getCampaign(campaignId: string): Promise<CampaignResponseDto> {
 }
 
 /**
+ * Create a reusable reward template
+ * Saves a reward to your library. It does nothing until linked to a campaign with POST /campaigns/{campaignId}/rewards/from-template. Same payload and prize rules as a campaign reward.
+ * @endpoint POST /rewards/reward-templates
+ */
+export function createRewardTemplate(body: RewardCreateRewardTemplateBody): Promise<RewardTemplateResponseDto> {
+  return apiSend('POST', E.rewardTemplates, body, cast<RewardTemplateResponseDto>, () => fx.rewardTemplateResponse)
+}
+
+/**
+ * List your reward templates
+ * Active templates by default. linkedRewardCount shows how many campaign rewards were copied from each.
+ * @endpoint GET /rewards/reward-templates
+ */
+export function listRewardTemplates(params: RewardListRewardTemplatesParams = {}): Promise<RewardListRewardTemplatesResult> {
+  return apiGet<RewardListRewardTemplatesResult>(E.rewardTemplates, () => fx.listRewardTemplatesResult, { ...params })
+}
+
+/**
+ * Get a reward template by id or RWT_... reference
+ * Get a reward template by id or RWT_... reference. Needs a signed-in user token.
+ * @endpoint GET /rewards/reward-templates/{templateId}
+ */
+export function getRewardTemplate(templateId: string): Promise<RewardTemplateResponseDto> {
+  return apiGet<RewardTemplateResponseDto>(E.rewardTemplate(templateId), () => fx.rewardTemplateResponse)
+}
+
+/**
+ * Edit a reward template (creates a new version)
+ * Partial update that increases version by 1. Campaigns that already linked this template keep their copy; draft, scheduled or paused campaigns can pull the new version with POST /campaigns/{campaignId}/rewards/{rewardId}/sync-template. Archived templates cannot be edited.
+ * @endpoint PATCH /rewards/reward-templates/{templateId}
+ */
+export function updateRewardTemplate(templateId: string, body: Partial<UpdateRewardTemplateDto>): Promise<RewardTemplateResponseDto> {
+  return apiSend('PATCH', E.rewardTemplate(templateId), body, cast<RewardTemplateResponseDto>, () => fx.rewardTemplateResponse)
+}
+
+/**
+ * Delete or archive a reward template
+ * Deleted outright if it was never used. If any campaign reward or issued reward references it, it is archived instead: hidden from the library and no longer linkable, while campaign copies keep working.
+ * @endpoint DELETE /rewards/reward-templates/{templateId}
+ */
+export function deleteRewardTemplate(templateId: string): Promise<DeleteRewardTemplateResultDto> {
+  return apiSend('DELETE', E.rewardTemplate(templateId), undefined, cast<DeleteRewardTemplateResultDto>, () => fx.deleteRewardTemplateResult)
+}
+
+/**
  * Real-time Campaign & Reward Evaluation (PRD §26.7 FR-RWD-07)
  * Evaluates transaction against active campaigns, checks stateful customer progress (frequency/value/first-time), applies Optimistic Concurrency Control, draws down budget escrow (ESC_...), and mints POR_... issuance.
  * @endpoint POST /rewards/campaigns/evaluate
@@ -313,7 +380,7 @@ export function overrideCampaign(campaignId: string, body: RewardOverrideCampaig
 
 /**
  * Inspect BullMQ queue counts (waiting, active, delayed, completed, failed)
- * Admin only. Shows background queue counts (waiting, active, delayed, completed, failed).
+ * Admin only. Shows background queue counts (waiting, active, delayed, completed, failed), outbox event counts (pending, held, delivered, failed) and which delivery targets are switched on.
  * @endpoint GET /rewards/admin/queues/status
  */
 export function getQueueStatus(): Promise<QueueStatusResponseDto> {
@@ -363,6 +430,15 @@ export function runEscrowAudit(): Promise<EscrowAuditResultDto> {
  */
 export function runProgressArchival(): Promise<ProgressArchivalResultDto> {
   return apiSend('POST', E.adminQueuesArchiveProgress, undefined, cast<ProgressArchivalResultDto>, () => fx.progressArchivalResult)
+}
+
+/**
+ * Replay undelivered outbox events (points, card credits, notifications)
+ * Re-sends outbox events oldest first. With the queue up they are re-queued; with it down they are delivered directly. Events whose target is switched off (REWARD_DELIVERY_*) stay HELD. DELIVERED events are never replayed.
+ * @endpoint POST /rewards/admin/queues/replay-outbox
+ */
+export function replayOutbox(body: RewardReplayOutboxBody): Promise<ReplayOutboxResultDto> {
+  return apiSend('POST', E.adminQueuesReplayOutbox, body, cast<ReplayOutboxResultDto>, () => fx.replayOutboxResult)
 }
 
 /**

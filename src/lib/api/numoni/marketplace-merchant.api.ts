@@ -150,7 +150,7 @@ export function updateProductImages(storeId: string, id: string, body: Marketpla
 
 /**
  * Create a new store
- * Create a new store. For the signed-in merchant (store owner).
+ * multipart/form-data. **At least one industry is required:** send `industries` (repeated field, JSON string or comma-separated) or the legacy `industry`. Pick values from `GET /industries`. `logo` is an optional image file.
  * @endpoint POST /marketplace/merchant/stores
  */
 export function createStore(body: MarketplaceMerchantCreateStoreBody, opts: SendOptions = {}): Promise<StoreResponseDto> {

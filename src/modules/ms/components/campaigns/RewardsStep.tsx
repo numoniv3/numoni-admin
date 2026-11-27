@@ -1,42 +1,34 @@
 'use client'
 
-import { useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { Pause, Play, RefreshCw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Pill } from '@/components/ui/kit'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import type { CampaignResponseDto, CreateRewardDto, RewardResponseDto } from '@/lib/api/numoni/types/rewards'
-import { useCampaignRewardsQuery, useSetCampaignRewards } from '@/modules/ms/api/useCampaignQueries'
+import type { CampaignResponseDto, RewardResponseDto, RewardTemplateResponseDto } from '@/lib/api/numoni/types/rewards'
+import {
+  useCampaignRewardsQuery, useRemoveCampaignReward, useSetCampaignRewardStatus, useSyncCampaignReward,
+} from '@/modules/ms/api/useCampaignQueries'
+import { rewardTemplatesQuery } from '@/modules/ms/api/useRewardQueries'
 import { PRIZE_TONE, prizeSummary, ruleSummary } from '@/modules/ms/components/rewards/rule-fields'
-import { titleCase } from './campaign-meta'
-
-/** A saved reward as a create body — for copying it onto another campaign. */
-const asNewReward = (r: RewardResponseDto): CreateRewardDto => ({
-  name: r.name, rewardDirection: r.rewardDirection, ruleType: r.ruleType, ruleConfig: r.ruleConfig, prizeType: r.prizeType,
-  prizeValue: r.prizeValue ?? undefined, giftDetails: r.giftDetails, couponDetails: r.couponDetails, raffleDetails: r.raffleDetails,
-  maxRewardPerUser: r.maxRewardPerUser ?? undefined, maxRewardPerTxn: r.maxRewardPerTxn ?? undefined,
-})
+import { AttachRewardPanel } from './AttachRewardPanel'
+import { isClosed, titleCase } from './campaign-meta'
 
 interface RewardsStepProps {
   campaign: CampaignResponseDto
-  /** Other campaigns whose rewards can be copied here. */
-  others: CampaignResponseDto[]
   onDone: () => void
 }
 
-/** Step 3 — the campaign's rewards. Single rewards are managed on the Rewards page; this copies a whole set (`PUT …/rewards`). */
-export function RewardsStep({ campaign, others, onDone }: RewardsStepProps) {
-  const replace = useSetCampaignRewards()
-  const [source, setSource] = useState('')
+/** Step 3 — the campaign's rewards, attached from the merchant's reward library (managed on the Rewards page). */
+export function RewardsStep({ campaign, onDone }: RewardsStepProps) {
   // `GET …/{id}/rewards` (wizard step 3); the campaign payload’s copy shows until it loads.
   const { data: listed } = useCampaignRewardsQuery(campaign.id)
   const rewards = listed ?? campaign.rewards ?? []
-  const donors = others.filter((c) => c.id !== campaign.id && c.rewards?.length)
-
-  const copy = () => {
-    const from = donors.find((c) => c.id === source)
-    if (from) replace.mutate({ campaignId: campaign.id, rewards: from.rewards.map(asNewReward) }, { onSuccess: () => setSource('') })
-  }
+  const { data: library = [] } = useQuery(rewardTemplatesQuery())
+  const closed = isClosed(campaign.status)
+  // The Rewards page sits beside the Campaigns page in every app that has both.
+  const rewardsHref = usePathname().replace(/\/campaigns(\/.*)?$/, '/rewards')
 
   return (
     <div className="space-y-4">
@@ -45,41 +37,72 @@ export function RewardsStep({ campaign, others, onDone }: RewardsStepProps) {
       ) : (
         <div className="rounded-2xl border divide-y">
           {rewards.map((r) => (
-            <div key={r.id} className="px-4 py-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{r.name}</div>
-                <div className="text-[11px] text-muted-foreground tnum">{ruleSummary(r)} → {prizeSummary(r)}</div>
-              </div>
-              <div className="flex gap-1 shrink-0">
-                <Pill tone={PRIZE_TONE[r.prizeType]}>{titleCase(r.prizeType)}</Pill>
-                <Pill tone={r.status === 'ACTIVE' ? 'green' : 'orange'}>{titleCase(r.status)}</Pill>
-              </div>
-            </div>
+            <CampaignRewardRow key={r.id} reward={r} campaign={campaign} template={library.find((t) => t.id === r.templateId)} closed={closed} />
           ))}
         </div>
       )}
 
-      <Button asChild variant="outline" className="w-full rounded-full">
-        <Link href={`/merchant/programs?campaign=${encodeURIComponent(campaign.id)}`}>Add or edit rewards on the Rewards page →</Link>
-      </Button>
+      {!closed && <AttachRewardPanel campaignId={campaign.id} library={library} attached={rewards} />}
 
-      {donors.length > 0 && (
-        <div className="rounded-2xl border p-4">
-          <div className="label-caps mb-2">Copy rewards from another campaign</div>
-          <div className="flex gap-2">
-            <Select value={source} onValueChange={setSource}>
-              <SelectTrigger className="flex-1"><SelectValue placeholder="Pick a campaign…" /></SelectTrigger>
-              <SelectContent>{donors.map((c) => <SelectItem key={c.id} value={c.id}>{c.name} · {c.rewards.length} rewards</SelectItem>)}</SelectContent>
-            </Select>
-            <Button onClick={copy} disabled={!source || replace.isPending} variant="outline">{replace.isPending ? 'Copying…' : 'Replace'}</Button>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-2">Replaces every reward on this campaign with copies of the other campaign’s rewards.</p>
-        </div>
-      )}
+      <Button asChild variant="outline" className="w-full rounded-full">
+        <Link href={rewardsHref}>Create or edit rewards in your library →</Link>
+      </Button>
 
       <Button onClick={onDone} disabled={rewards.length === 0} className="w-full h-11 rounded-full bg-brand text-black font-bold hover:bg-brand/90">
-        {rewards.length === 0 ? 'Add at least one reward to continue' : 'Continue to budget'}
+        {rewards.length === 0 ? 'Attach at least one reward to continue' : 'Continue to budget'}
       </Button>
+    </div>
+  )
+}
+
+interface CampaignRewardRowProps {
+  reward: RewardResponseDto
+  campaign: CampaignResponseDto
+  /** The library reward it was copied from, when it's still active. */
+  template?: RewardTemplateResponseDto
+  closed: boolean
+}
+
+function CampaignRewardRow({ reward: r, campaign, template, closed }: CampaignRewardRowProps) {
+  const sync = useSyncCampaignReward()
+  const setStatus = useSetCampaignRewardStatus()
+  const remove = useRemoveCampaignReward()
+  const ids = { campaignId: campaign.id, rewardId: r.id, name: r.name }
+  const active = r.status === 'ACTIVE'
+  // A live campaign never changes payout silently: syncing is allowed only while it's not running.
+  const outdated = !!template && !!r.templateVersion && template.version > r.templateVersion
+  const canSync = outdated && ['DRAFT', 'SCHEDULED', 'PAUSED'].includes(campaign.status)
+  const busy = sync.isPending || setStatus.isPending || remove.isPending
+
+  return (
+    <div className="px-4 py-3 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{r.name}</div>
+        <div className="text-[11px] text-muted-foreground tnum">{ruleSummary(r)} → {prizeSummary(r)}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5">
+          {r.templateId ? `From your library · v${r.templateVersion ?? 1}` : 'Added directly to this campaign'}
+          {outdated && <span className="text-orange-500"> · v{template!.version} available{canSync ? '' : ' — pause the campaign to update'}</span>}
+        </div>
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        <Pill tone={PRIZE_TONE[r.prizeType]}>{titleCase(r.prizeType)}</Pill>
+        <Pill tone={active ? 'green' : 'orange'}>{titleCase(r.status)}</Pill>
+        {!closed && (
+          <>
+            {canSync && (
+              <Button size="sm" variant="ghost" className="h-8" title={`Update to v${template!.version}`} disabled={busy} onClick={() => sync.mutate(ids)}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" className="h-8" title={active ? 'Pause' : 'Resume'} disabled={busy} onClick={() => setStatus.mutate({ ...ids, status: active ? 'PAUSED' : 'ACTIVE' })}>
+              {active ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+            </Button>
+            <Button size="sm" variant="ghost" className="h-8 text-muted-foreground hover:text-red-500" title="Remove from campaign" disabled={busy} onClick={() => remove.mutate(ids)}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   )
 }

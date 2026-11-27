@@ -51,9 +51,14 @@ export const RowButton = ({ children, onClick, disabled }: { children: ReactNode
   <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={onClick} disabled={disabled}>{children}</Button>
 )
 
-/** A page split into tabs; only the open tab mounts (so only its queries run). */
-export function PageTabs({ tabs }: { tabs: { id: string; label: string; content: ReactNode }[] }) {
-  const [tab, setTab] = useState(tabs[0]?.id)
+/**
+ * A page split into tabs; only the open tab mounts (so only its queries run).
+ * Pass `value` + `onValueChange` to control it, or `initial` to pick the first one shown.
+ */
+export function PageTabs({ tabs, initial, value, onValueChange }: { tabs: { id: string; label: string; content: ReactNode }[]; initial?: string; value?: string; onValueChange?: (id: string) => void }) {
+  const [own, setOwn] = useState(initial ?? tabs[0]?.id)
+  const tab = value ?? own
+  const setTab = onValueChange ?? setOwn
   return (
     <Tabs value={tab} onValueChange={setTab}>
       <TabsList className="mb-5 flex-wrap h-auto">{tabs.map((t) => <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>)}</TabsList>

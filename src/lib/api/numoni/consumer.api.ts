@@ -1,7 +1,7 @@
 import { NUMONI_ENDPOINTS } from './endpoints'
-import { apiGet } from './request'
+import { apiGet, apiSend, idempotent } from './request'
 import * as C from './mocks/consumer'
-import type { ConsumerWorkspace, NearbyOffer, PromoBanner, SupportFaq, WalkInBrand } from './types/consumer'
+import type { ConsumerWorkspace, Funding, NearbyOffer, PromoBanner, SupportFaq, WalkInBrand } from './types/consumer'
 
 const E = NUMONI_ENDPOINTS.consumer
 
@@ -54,4 +54,23 @@ export function listWalkInBrands(): Promise<WalkInBrand[]> {
  */
 export function listSupportFaqs(): Promise<SupportFaq[]> {
   return apiGet(E.faqs, () => C.supportFaqs)
+}
+
+/**
+ * Starts a Buy Points purchase for `amount` naira (1 point per naira): makes sure
+ * the customer has an NGN wallet, creates the buy order and returns the bank
+ * account to transfer to. Poll `getFunding` until it's `completed`.
+ * @endpoint POST /consumer/funding
+ */
+export function startFunding(amount: string, idempotencyKey: string): Promise<Funding> {
+  return apiSend('POST', E.funding, { amount }, (raw) => raw as Funding, (b) => C.fundingFixture((b as { amount: string }).amount), idempotent(idempotencyKey))
+}
+
+/**
+ * A Buy Points purchase. While it's awaiting payment, the Gateway re-checks the
+ * payment with the provider on every read.
+ * @endpoint GET /consumer/funding/{id}
+ */
+export function getFunding(id: string): Promise<Funding> {
+  return apiGet<Funding>(E.fundingById(id), () => ({ ...C.fundingFixture('10000.00'), id, status: 'completed' }))
 }

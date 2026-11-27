@@ -45,9 +45,34 @@ export function PrizeFields({ prizeTypes, draft: d, update }: PrizeFieldsProps) 
 
       <div className="grid grid-cols-2 gap-3 mt-3">
         {d.prizeType === 'POINTS' && (
-          <Field label="Points per reward">
-            <Input value={d.points} onChange={(e) => update({ points: digits(e.target.value) })} placeholder="e.g. 500" className="tnum" inputMode="numeric" />
-          </Field>
+          <>
+            <div className="col-span-2 flex gap-1.5">
+              {([['fixed', 'Fixed points'], ['percent', '% of purchase']] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => update({ pointsMode: mode })}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${d.pointsMode === mode ? 'border-brand bg-brand/10 text-brand' : 'text-muted-foreground hover:border-foreground/30'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {d.pointsMode === 'fixed' ? (
+              <Field label="Points per reward">
+                <Input value={d.points} onChange={(e) => update({ points: digits(e.target.value) })} placeholder="e.g. 500" className="tnum" inputMode="numeric" />
+              </Field>
+            ) : (
+              <>
+                <Field label="Percentage of the purchase">
+                  <Input value={d.percent} onChange={(e) => update({ percent: e.target.value.replace(/[^\d.]/g, '') })} placeholder="e.g. 5" className="tnum" inputMode="decimal" />
+                </Field>
+                <p className="col-span-2 text-[11px] text-muted-foreground -mt-1">
+                  E.g. 5% of a ₦20,000 purchase is 1,000 points. Set a max per transaction below to cap big purchases.
+                </p>
+              </>
+            )}
+          </>
         )}
         {d.prizeType === 'COUPON' && (
           <>

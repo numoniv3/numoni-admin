@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isAxiosError } from 'axios'
 import { toast } from 'sonner'
 import { apiErrorMessage } from '@/lib/api/numoni/errors'
 import { numoniKeys } from '@/lib/api/numoni/query-keys'
 import {
-  createCampaign, getCampaign, getCampaignLedger, listCampaignRewards, pauseCampaign, resumeCampaign, setCampaignAudience, setCampaignBudget,
-  setCampaignRewards, startCampaign, stopCampaign,
+  createCampaign, deleteCampaignReward, getCampaign, getCampaignLedger, linkRewardTemplate, listCampaignRewards, pauseCampaign, resumeCampaign,
+  setCampaignAudience, setCampaignBudget, startCampaign, stopCampaign, syncRewardTemplate, updateCampaignReward,
 } from '@/lib/api/numoni/rewards.api'
 import type {
-  CampaignResponseDto, CreateRewardDto, SetAudienceChannelsDto, SetCampaignBudgetDto, SetupCampaignDto,
+  CampaignResponseDto, RewardTemplateOverridesDto, SetAudienceChannelsDto, SetCampaignBudgetDto, SetupCampaignDto,
 } from '@/lib/api/numoni/types/rewards'
 import { ensureRewardsOptIn, useSessionUser } from './ms-opt-in'
 
@@ -73,13 +74,47 @@ export function useSetCampaignAudience() {
   })
 }
 
-/** Step 3 (bulk) — replaces every reward on the campaign, e.g. copied from another campaign. */
-export function useSetCampaignRewards() {
+/** Step 3 — attaches a library reward to the campaign as its own copy (`POST …/rewards/from-template`), optionally with per-campaign amounts. */
+export function useLinkRewardTemplate() {
   const refresh = useRefresh()
   return useMutation({
-    mutationFn: ({ campaignId, rewards }: { campaignId: string; rewards: CreateRewardDto[] }) => setCampaignRewards(campaignId, { rewards }),
-    onSuccess: (c) => { refresh(); toast.success('Rewards replaced', { description: `${c.rewards?.length ?? 0} rewards on ${c.name}` }) },
-    onError: fail('Couldn’t set the rewards'),
+    mutationFn: ({ campaignId, templateId, overrides }: { campaignId: string; templateId: string; overrides?: RewardTemplateOverridesDto; name: string }) =>
+      linkRewardTemplate(campaignId, { templateId, ...(overrides && Object.keys(overrides).length ? { overrides } : {}) }),
+    onSuccess: (_, { name }) => { refresh(); toast.success('Reward added to the campaign', { description: name }) },
+    onError: (e) => toast.error('Couldn’t add the reward', {
+      description: isAxiosError(e) && e.response?.status === 409 ? 'It’s already on this campaign.' : apiErrorMessage(e),
+    }),
+  })
+}
+
+/** Step 3 — re-copies a linked reward from its template's latest version (`POST …/sync-template`). Keeps the overrides chosen when it was attached. */
+export function useSyncCampaignReward() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: ({ campaignId, rewardId }: { campaignId: string; rewardId: string; name: string }) => syncRewardTemplate(campaignId, rewardId, {}),
+    onSuccess: (_, { name }) => { refresh(); toast.success('Reward updated to the latest version', { description: name }) },
+    onError: fail('Couldn’t update the reward'),
+  })
+}
+
+/** Pause or resume one reward on the campaign — the campaign keeps running. */
+export function useSetCampaignRewardStatus() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: ({ campaignId, rewardId, status }: { campaignId: string; rewardId: string; status: 'ACTIVE' | 'PAUSED'; name: string }) =>
+      updateCampaignReward(campaignId, rewardId, { status }),
+    onSuccess: (_, { status, name }) => { refresh(); toast.success(status === 'PAUSED' ? 'Reward paused' : 'Reward resumed', { description: name }) },
+    onError: fail('Couldn’t change the reward'),
+  })
+}
+
+/** Removes a reward from the campaign (`DELETE …/rewards/{rewardId}`). The library reward is untouched. */
+export function useRemoveCampaignReward() {
+  const refresh = useRefresh()
+  return useMutation({
+    mutationFn: ({ campaignId, rewardId }: { campaignId: string; rewardId: string; name: string }) => deleteCampaignReward(campaignId, rewardId),
+    onSuccess: (_, { name }) => { refresh(); toast.success('Reward removed from the campaign', { description: name }) },
+    onError: fail('Couldn’t remove the reward'),
   })
 }
 

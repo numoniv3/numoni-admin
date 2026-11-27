@@ -8,6 +8,7 @@ import { ActionForm, type Values } from '@/modules/ms/components/shared/ActionFo
 import { PageTabs } from '@/modules/ms/components/shared/bits'
 import { RecordView } from '@/modules/ms/components/shared/DataView'
 import { recordOf } from '@/modules/ms/components/shared/fields'
+import { StorePolicies } from './StorePolicies'
 import { BRANDING, STORE_UPDATE } from './store-fields'
 import { useUploadProgress } from '@/modules/ms/components/shared/use-upload-progress'
 
@@ -33,8 +34,8 @@ function Subscription({ store, ops }: { store: StoreResponseDto; ops: StoreOps }
   )
 }
 
-/** Store details, publishing, branding, payment charges, shipping and subscription. `ops` decides merchant vs admin-on-behalf. */
-export function StoreSettings({ store, ops, admin }: { store: StoreResponseDto; ops: StoreOps; admin?: boolean }) {
+/** Store details, publishing, branding, policies, payment charges, shipping and subscription. `ops` decides merchant vs admin-on-behalf. */
+export function StoreSettings({ store, ops, admin, initialTab }: { store: StoreResponseDto; ops: StoreOps; admin?: boolean; initialTab?: string }) {
   const logoUpload = useUploadProgress()
   const bannerUpload = useUploadProgress()
   const update = useStoreAction((body: Values) => ops.update(store.id, body, { onProgress: logoUpload.onProgress }), 'Store saved', 'Couldn’t save the store')
@@ -45,7 +46,7 @@ export function StoreSettings({ store, ops, admin }: { store: StoreResponseDto; 
   const initial = store as unknown as Values
 
   return (
-    <PageTabs tabs={[
+    <PageTabs initial={initialTab} tabs={[
       { id: 'details', label: 'Details', content: <div className="max-w-2xl"><ActionForm fields={STORE_UPDATE} initial={initial} submitLabel="Save store" pendingLabel={logoUpload.label('Saving…')} pending={update.isPending} onSubmit={(v) => update.mutate(v, { onSettled: logoUpload.reset })} /></div> },
       ...(admin ? [] : [{
         id: 'publish', label: 'Publishing', content: (
@@ -56,6 +57,9 @@ export function StoreSettings({ store, ops, admin }: { store: StoreResponseDto; 
             ))}
           </div>
         ),
+      }, {
+        // Merchant-only: the standard policy copy comes from a merchant endpoint.
+        id: 'policies', label: 'Policies', content: <StorePolicies store={store} save={(body) => update.mutate(body)} saving={update.isPending} />,
       }, {
         id: 'branding', label: 'Branding', content: <div className="max-w-2xl"><ActionForm fields={BRANDING} initial={initial} submitLabel="Save branding" pendingLabel={bannerUpload.label('Saving…')} pending={branding.isPending} onSubmit={(body) => branding.mutate({ id: store.id, body, onProgress: bannerUpload.onProgress }, { onSettled: bannerUpload.reset })} /></div>,
       }]),

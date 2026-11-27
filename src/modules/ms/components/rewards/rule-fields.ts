@@ -13,13 +13,15 @@ export type Weekday = NonNullable<RewardRuleConfigDto['deadTimeDaysOfWeek']>[num
 
 type FieldKind = 'number' | 'naira' | 'hour' | 'date' | 'eventKind' | 'gamification' | 'weekdays'
 
-export const RULE_FIELDS: Record<RuleField, { label: string; kind: FieldKind; unit?: string; placeholder?: string; optional?: boolean }> = {
+export const RULE_FIELDS: Record<RuleField, { label: string; kind: FieldKind; unit?: string; placeholder?: string; optional?: boolean; hidden?: boolean }> = {
   frequencyCount: { label: 'Visits needed', kind: 'number', unit: 'visits', placeholder: '3' },
   frequencyWindowDays: { label: 'Within', kind: 'number', unit: 'days', placeholder: '30' },
   valueThreshold: { label: 'Spend threshold', kind: 'naira', placeholder: '10,000' },
   durationDays: { label: 'Customer for at least', kind: 'number', unit: 'days', placeholder: '30' },
   eventKind: { label: 'Event', kind: 'eventKind' },
-  eventDate: { label: 'Only on this date', kind: 'date', optional: true },
+  // Stored by the service but not used for eligibility: EVENT rewards fire on the customer's
+  // date sent at checkout (e.g. their birthday), so the form doesn't ask for it.
+  eventDate: { label: 'Event date', kind: 'date', optional: true, hidden: true },
   gamificationTrigger: { label: 'Behaviour', kind: 'gamification', optional: true },
   inactivityDays: { label: 'No purchase for', kind: 'number', unit: 'days', placeholder: '30' },
   inactivityDaysMin: { label: 'Inactive from (T1)', kind: 'number', unit: 'days', placeholder: '7', optional: true },
@@ -44,7 +46,7 @@ export function ruleSummary(r: Pick<RewardResponseDto, 'ruleType' | 'ruleConfig'
     case 'BY_FREQUENCY': parts.push(`${plural(c.frequencyCount ?? 1, 'visit')} in ${c.frequencyWindowDays ?? 30} days`); break
     case 'BY_VALUE': parts.push(`${fmtNaira(c.valueThreshold ?? 0, 0)} spent`); break
     case 'DURATION_OF_PATRONAGE': parts.push(`Customer for ${plural(c.durationDays ?? 30, 'day')}`); break
-    case 'EVENT': parts.push(c.eventKind ? titleCase(c.eventKind) : 'Event', ...(c.eventDate ? [new Date(c.eventDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' })] : [])); break
+    case 'EVENT': parts.push(c.eventKind ? titleCase(c.eventKind) : 'Event'); break
     case 'BEHAVIOR_GAMIFICATION': parts.push(c.gamificationTrigger ? titleCase(c.gamificationTrigger) : 'Any behaviour'); break
     case 'REACTIVATION_DORMANCY': parts.push(`Inactive ${plural(c.inactivityDays ?? 30, 'day')}`); break
     case 'INACTIVITY_DEAD_TIME':
@@ -61,9 +63,9 @@ export function ruleSummary(r: Pick<RewardResponseDto, 'ruleType' | 'ruleConfig'
 }
 
 /** What the customer gets, e.g. "500 pts" or "20% off · SAVE20". */
-export function prizeSummary(r: Pick<RewardResponseDto, 'prizeType' | 'prizeValue' | 'couponDetails' | 'giftDetails' | 'raffleDetails'>): string {
+export function prizeSummary(r: Pick<RewardResponseDto, 'prizeType' | 'prizeValue' | 'prizePercent' | 'couponDetails' | 'giftDetails' | 'raffleDetails'>): string {
   switch (r.prizeType) {
-    case 'POINTS': return `${(r.prizeValue ?? 0).toLocaleString()} pts`
+    case 'POINTS': return r.prizePercent ? `${r.prizePercent}% of purchase in pts` : `${(r.prizeValue ?? 0).toLocaleString()} pts`
     case 'COUPON': {
       const c = r.couponDetails ?? {}
       return [c.discountPercent != null ? `${c.discountPercent}% off` : 'Coupon', c.couponCode, c.expiryDays ? `${c.expiryDays} days` : undefined].filter(Boolean).join(' · ')

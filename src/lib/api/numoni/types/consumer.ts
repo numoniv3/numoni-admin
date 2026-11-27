@@ -138,3 +138,36 @@ export interface SupportFaq {
   q: string
   a: string
 }
+
+/* ---------- Buy Points funding (`POST /consumer/funding`, `GET /consumer/funding/{id}`) ---------- */
+
+/** Mapped buy-order status (pending and awaiting_payment both arrive as `awaiting_payment`). */
+export type FundingStatus = 'awaiting_payment' | 'processing' | 'completed' | 'needs_recon' | 'cancelled'
+
+/** A ledger credit with the balance before and after (decimal strings; before/after may be null). */
+export interface PointCredit {
+  points: string
+  before: string | null
+  after: string | null
+  ref: string
+}
+
+/** One Buy Points purchase. Amounts are decimal strings (naira 2dp, points scale 6). */
+export interface Funding {
+  /** Buy-order id — poll `GET /consumer/funding/{id}` with it. */
+  id: string
+  status: FundingStatus
+  /** Raw status from Wallet MS. */
+  walletStatus: string
+  reference: string
+  /** Naira to transfer. */
+  amount: string
+  /** Points the purchase credits (1 point per naira), excluding the bonus. */
+  pointsExpected: string
+  /** Indicative only (about 5%) — Reward MS decides the real bonus after payment. */
+  bonusPreview: { points: string; ratePercent: string; basis: 'estimate'; note: string }
+  /** The account to transfer to; null once it no longer applies. */
+  dedicatedAccount: { number: string; bank: string; name: string; expiry?: string } | null
+  pointsCredited: PointCredit | null
+  bonusCredited: PointCredit | null
+}

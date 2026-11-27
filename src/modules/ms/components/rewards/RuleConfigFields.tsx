@@ -18,7 +18,7 @@ interface RuleConfigFieldsProps {
 
 /** The settings of the chosen rule type — only the fields that type uses. */
 export function RuleConfigFields({ fields, enums, draft, update }: RuleConfigFieldsProps) {
-  const known = fields.filter((f): f is RuleField => f in RULE_FIELDS)
+  const known = fields.filter((f): f is RuleField => f in RULE_FIELDS && !RULE_FIELDS[f as RuleField].hidden)
   if (!known.length) return null
   const set = (key: RuleField, value: string) => update({ config: { ...draft.config, [key]: value } })
 

@@ -12,6 +12,7 @@ import { useBuyPoints, useVerifyBuyOrder } from '@/modules/wallet'
 import { useSessionUser } from '@/modules/ms/api/ms-opt-in'
 import { toE164 } from '@/lib/auth/phone'
 import { RecordView } from '@/modules/ms/components/shared/DataView'
+import { CustomerFund } from './CustomerFund'
 import { toNaira, toPoints } from './wallet-config'
 
 interface SheetProps { wallet: Wallet; open: boolean; onOpenChange: (open: boolean) => void }
@@ -71,11 +72,15 @@ function Fund({ wallet, onDone }: { wallet: Wallet; onDone: () => void }) {
   )
 }
 
-/** `POST …/buy-points` → pay the virtual account → `POST /wallet/buy-orders/{id}/verify-payment`. */
+/**
+ * Customers buy points through `POST /consumer/funding` (`CustomerFund`); business
+ * wallets use `POST …/buy-points` → pay the virtual account → `POST /wallet/buy-orders/{id}/verify-payment`.
+ */
 export function FundSheet({ wallet, open, onOpenChange }: SheetProps) {
+  const customer = useSessionUser()?.userType === 'CUSTOMER'
   return (
     <FormSheet open={open} onOpenChange={onOpenChange} title="Fund wallet" sub="Pay by bank transfer — points land as soon as the payment clears.">
-      {open && <Fund wallet={wallet} onDone={() => onOpenChange(false)} />}
+      {open && (customer ? <CustomerFund onDone={() => onOpenChange(false)} /> : <Fund wallet={wallet} onDone={() => onOpenChange(false)} />)}
     </FormSheet>
   )
 }

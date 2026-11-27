@@ -1,7 +1,9 @@
+import { axiosClient } from '@/lib/axios'
 import { NUMONI_ENDPOINTS } from './endpoints'
+import { toQuery } from './envelope'
 import { mintHistory, pointBalanceChecks, pointJournal, pointReconReport, poolsSnapshot } from './mocks/points'
 import { child, list, obj, str, type Obj } from './parse'
-import { apiRead, apiSend, idempotent } from './request'
+import { apiRead, apiSend, idempotent, isMocked } from './request'
 import type {
   JournalFilters, MintInput, MintRecord, MintResult, PageFilters, PointReconReport, PointsOptInResult, PoolsSnapshot,
 } from './types/points'
@@ -43,6 +45,7 @@ function toMintResult(raw: unknown): MintResult {
     journalEntryId: dec(o, '', 'journalEntryId'),
     totalMinted: dec(o, '0', 'totalMinted'),
     buyPoolBalance: dec(o, '0', 'buyPoolBalance'),
+    fiatFundingReference: dec(o, '', 'fiatFundingReference') || null,
   }
 }
 
@@ -169,6 +172,21 @@ export function listPointJournal(filters: JournalFilters = {}): Promise<LedgerJo
     () => pointJournal.filter((j) => !filters.referencePrefix || j.reference.startsWith(filters.referencePrefix)),
     { ...filters },
   )
+}
+
+/**
+ * The journal as CSV (up to 5,000 entries, one row per posting), for download.
+ * @endpoint GET /points/admin/journal?format=csv
+ */
+export async function exportPointJournalCsv(filters: JournalFilters = {}): Promise<string> {
+  if (isMocked(E.admin.journal)) {
+    const rows = pointJournal
+      .filter((j) => !filters.referencePrefix || j.reference.startsWith(filters.referencePrefix))
+      .flatMap((j) => j.postings.map((p) => [j.createdAt, j.reference, p.account, p.direction, p.amount, JSON.stringify(j.description ?? '')].join(',')))
+    return ['createdAt,reference,account,direction,amount,description', ...rows].join('\n')
+  }
+  const response = await axiosClient.get<string>(E.admin.journal, { params: toQuery({ ...filters, limit: undefined, offset: undefined, format: 'csv' }), responseType: 'text' })
+  return typeof response.data === 'string' ? response.data : JSON.stringify(response.data)
 }
 
 /**

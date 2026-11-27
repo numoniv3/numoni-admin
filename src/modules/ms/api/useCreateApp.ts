@@ -17,7 +17,7 @@ const all = [K.all]
 /** `merchantId` set: that merchant's apps; otherwise every app (admin). */
 export const useApps = (merchantId?: string) =>
   useMsQuery(merchantId ? K.listMerchantApps(merchantId) : K.listApps(), () => (merchantId ? A.listMerchantApps(merchantId) : A.listApps()), opt)
-export const useApp = (id: string) => useMsQuery(K.getApp(id), () => A.getApp(id), opt)
+export const useApp = (id: string) => useMsQuery(K.getApp(id), () => A.getApp(id), { ...opt, enabled: !!id })
 export const useProductKeys = (id: string) => useMsQuery(K.listProductKeys(id), () => A.listProductKeys(id))
 export const useAppTransactions = (id: string, params: CreateAppListAppTransactionsParams) => useMsQuery(K.listAppTransactions(id, params), () => A.listAppTransactions(id, params))
 export const useAppTransactionStats = (id: string) => useMsQuery(K.getAppTransactionStats(id), () => A.getAppTransactionStats(id))

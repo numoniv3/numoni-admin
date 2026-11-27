@@ -4,11 +4,10 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { FormSheet } from '@/components/ui/form-sheet'
 import { Input } from '@/components/ui/input'
-import type { AllEnumsCatalogDto, CampaignResponseDto } from '@/lib/api/numoni/types/rewards'
+import type { AllEnumsCatalogDto } from '@/lib/api/numoni/types/rewards'
 import { useSaveReward } from '@/modules/ms/api/useRewardQueries'
-import { CampaignPicker } from './CampaignPicker'
 import { PrizeFields } from './PrizeFields'
-import { NEW_CAMPAIGN, draftToBody } from './reward-draft'
+import { draftToBody } from './reward-draft'
 import { RuleConfigFields } from './RuleConfigFields'
 import { RuleTypePicker } from './RuleTypePicker'
 import type { RewardForm } from './use-reward-form'
@@ -16,36 +15,25 @@ import type { RewardForm } from './use-reward-form'
 interface RewardFormSheetProps {
   form: RewardForm
   enums: AllEnumsCatalogDto
-  campaigns: CampaignResponseDto[]
 }
 
-export function RewardFormSheet({ form, enums, campaigns }: RewardFormSheetProps) {
+export function RewardFormSheet({ form, enums }: RewardFormSheetProps) {
   const { open, setOpen, editing, draft, update, reset } = form
   const save = useSaveReward()
   const ruleType = enums.rewardRuleTypes.find((t) => t.value === draft.ruleType)
 
   const submit = () => {
-    const isNew = draft.campaignId === NEW_CAMPAIGN
-    if (!draft.campaignId) return toast.error('Pick a campaign for this reward')
-    if (isNew && !draft.newCampaignName.trim()) return toast.error('Name the new campaign')
     const result = draftToBody(draft, ruleType?.applicableFields ?? [])
     if ('error' in result) return toast.error(result.error)
     save.mutate(
-      {
-        campaignId: isNew ? undefined : draft.campaignId,
-        newCampaign: isNew ? { name: draft.newCampaignName.trim(), channel: draft.newCampaignChannel } : undefined,
-        rewardId: editing?.id,
-        body: result.body,
-      },
+      { templateId: editing?.id, body: result.body },
       { onSuccess: () => { setOpen(false); reset() } },
     )
   }
 
   return (
-    <FormSheet open={open} onOpenChange={setOpen} title={editing ? 'Edit Reward' : 'Create Reward'} sub="A trigger rule and what the customer gets when it matches." wide>
+    <FormSheet open={open} onOpenChange={setOpen} title={editing ? 'Edit Reward' : 'Create Reward'} sub={editing ? `Saving creates version ${editing.version + 1}. Campaigns already using it keep their copy.` : 'A trigger rule and what the customer gets when it matches. Add it to any campaign from the campaign’s Rewards step.'} wide>
       <div className="space-y-5 pb-2">
-        <CampaignPicker campaigns={campaigns} channels={enums.campaignChannels} draft={draft} update={update} locked={!!editing} />
-
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="label-caps">Reward name</label>
@@ -75,6 +63,11 @@ export function RewardFormSheet({ form, enums, campaigns }: RewardFormSheetProps
           <div className="rounded-2xl border border-dashed p-4">
             <div className="label-caps mb-3">{ruleType.label} · settings</div>
             <RuleConfigFields fields={ruleType.applicableFields} enums={enums} draft={draft} update={update} />
+            {draft.ruleType === 'EVENT' && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Fires when the customer&apos;s own date (e.g. their birthday) matches today. If checkout doesn&apos;t send a date, it fires on every qualifying purchase.
+              </p>
+            )}
           </div>
         )}
 

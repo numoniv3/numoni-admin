@@ -24,3 +24,26 @@ export const amount = (v: string) => {
   return s === '' || !Number.isFinite(Number(s)) ? undefined : Number(s)
 }
 export const moneyInput = (v: string) => v.replace(/[^\d.,]/g, '')
+
+/** Why a card can't be charged right now (`chargeBlockedReason`), in words. */
+const BLOCKED: Record<NonNullable<CardDto['chargeBlockedReason']>, string> = {
+  CARD_NOT_ACTIVATED: 'Not activated yet',
+  CARD_SUSPENDED: 'Suspended',
+  CARD_EXPIRED: 'Expired',
+  CARD_CANCELLED: 'Cancelled',
+  // The normal resting state of an active closed-loop card — not a fault.
+  UNLOCK_REQUIRED: 'Ready — needs the customer’s code',
+  CARD_FROZEN: 'Frozen on the card network',
+}
+
+/**
+ * Can it be charged now? Uses the service's own `canCharge` / `chargeBlockedReason`;
+ * a closed-loop card's FROZEN lock is its normal state, so it isn't shown as a problem.
+ */
+export const chargeState = (c: Pick<CardDto, 'canCharge' | 'chargeBlockedReason' | 'lockStatus' | 'unlockedUntil'>) =>
+  c.canCharge ? (isUnlocked(c) ? 'Unlocked — can be charged now' : 'Can be charged') : c.chargeBlockedReason ? BLOCKED[c.chargeBlockedReason] : 'Can’t be charged'
+
+/** Who may lift a suspension: that level or higher (CUSTOMER < MERCHANT < ADMIN). */
+const RANK = { CUSTOMER: 0, MERCHANT: 1, ADMIN: 2 } as const
+export const canReinstate = (c: Pick<CardDto, 'status' | 'suspendedBy'>, me: keyof typeof RANK) =>
+  c.status === 'SUSPENDED' && (c.suspendedBy == null || RANK[me] >= RANK[c.suspendedBy])

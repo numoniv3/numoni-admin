@@ -91,8 +91,8 @@ export function useLoadCardReward() {
 export function useSetCardStatus() {
   const refresh = useRefresh()
   return useMutation({
-    mutationFn: ({ id, status, reason }: { id: string; status: 'ACTIVE' | 'SUSPENDED'; reason?: string }) => updateCardStatus(id, { status, reason }),
-    onSuccess: (c, { status }) => { refresh(); toast.success(status === 'SUSPENDED' ? 'Card suspended' : 'Card reinstated', { description: c.serialNumber }) },
+    mutationFn: ({ id, status }: { id: string; status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED' }) => updateCardStatus(id, { status }),
+    onSuccess: (c, { status }) => { refresh(); toast.success(status === 'SUSPENDED' ? 'Card suspended' : status === 'CANCELLED' ? 'Card cancelled' : 'Card reinstated', { description: c.serialNumber }) },
     onError: fail('Couldn’t change the card status'),
   })
 }

@@ -3,14 +3,16 @@ import { toast } from 'sonner'
 import { apiErrorMessage } from '@/lib/api/numoni/errors'
 import { numoniKeys } from '@/lib/api/numoni/query-keys'
 import {
-  addCampaignReward, createCampaign, deleteCampaignReward, getEnumCatalog, listCampaigns, updateCampaignReward,
+  createRewardTemplate, deleteRewardTemplate, getEnumCatalog, listCampaigns, listRewardTemplates, updateRewardTemplate,
 } from '@/lib/api/numoni/rewards.api'
-import type { CreateRewardDto, RewardListCampaignsParams, SetupCampaignDto } from '@/lib/api/numoni/types/rewards'
+import type { CreateRewardTemplateDto, RewardListCampaignsParams, RewardListRewardTemplatesParams } from '@/lib/api/numoni/types/rewards'
 import { ensureRewardsOptIn as ensureOptIn, useSessionUser } from './ms-opt-in'
 
 /*
- * Reward MS rewards (rule → prize) through the Gateway. Every reward belongs
- * to a campaign; campaign hooks are in `useCampaignQueries.ts`.
+ * Reward MS rewards (rule → prize) through the Gateway. Rewards are kept as
+ * reusable templates in the merchant's library (`/rewards/reward-templates`),
+ * not tied to a campaign; a campaign links a template to get its own copy
+ * (`useLinkRewardTemplate` in `useCampaignQueries.ts`).
  */
 
 const K = numoniKeys.rewards
@@ -34,6 +36,15 @@ export function useRewardCampaignsQuery(filters: RewardListCampaignsParams = {})
   })
 }
 
+/** Options for the merchant's reward library — shared by the Rewards page and a campaign's Rewards step. */
+export const rewardTemplatesQuery = (params: RewardListRewardTemplatesParams = {}) => ({
+  queryKey: K.listRewardTemplates(params),
+  queryFn: () => listRewardTemplates(params),
+})
+
+/** The reward library (`GET /reward-templates`): active templates unless `status: 'ARCHIVED'`. */
+export const useRewardTemplatesQuery = (params: RewardListRewardTemplatesParams = {}) => useSuspenseQuery(rewardTemplatesQuery(params))
+
 // ── writes ───────────────────────────────────────────────────────────────────
 
 function useRefreshRewards() {
@@ -42,54 +53,38 @@ function useRefreshRewards() {
 }
 
 export interface SaveRewardInput {
-  /** The reward's campaign — or, with `newCampaign`, ignored and created first. */
-  campaignId?: string
-  newCampaign?: SetupCampaignDto
-  /** Set when editing an existing reward. */
-  rewardId?: string
-  body: CreateRewardDto
+  /** Set when editing an existing template. */
+  templateId?: string
+  body: CreateRewardTemplateDto
 }
 
-/** Creates (`POST …/rewards`) or edits (`PATCH …/rewards/{rewardId}`) a reward, creating its campaign first if asked. */
+/** Creates (`POST /reward-templates`) or edits (`PATCH /reward-templates/{templateId}`, a new version) a reward. */
 export function useSaveReward() {
   const user = useSessionUser()
   const refresh = useRefreshRewards()
   return useMutation({
-    mutationFn: async ({ campaignId, newCampaign, rewardId, body }: SaveRewardInput) => {
+    mutationFn: async ({ templateId, body }: SaveRewardInput) => {
       await ensureOptIn(user)
-      const target = newCampaign ? (await createCampaign(newCampaign)).id : campaignId
-      if (!target) throw new Error('Pick a campaign for this reward')
-      return rewardId ? updateCampaignReward(target, rewardId, body) : addCampaignReward(target, body)
+      return templateId ? updateRewardTemplate(templateId, body) : createRewardTemplate(body)
     },
-    onSuccess: (reward, { rewardId }) => {
+    onSuccess: (reward, { templateId }) => {
       refresh()
-      toast.success(rewardId ? 'Reward updated' : 'Reward created', { description: reward.name })
+      toast.success(templateId ? 'Reward updated' : 'Reward created', { description: reward.name })
     },
-    onError: (e, { rewardId }) => toast.error(rewardId ? 'Couldn’t update the reward' : 'Couldn’t create the reward', { description: apiErrorMessage(e) }),
+    onError: (e, { templateId }) => toast.error(templateId ? 'Couldn’t update the reward' : 'Couldn’t create the reward', { description: apiErrorMessage(e) }),
   })
 }
 
-/** Pause or resume one reward — its campaign keeps running. */
-export function useSetRewardStatus() {
-  const refresh = useRefreshRewards()
-  return useMutation({
-    mutationFn: ({ campaignId, rewardId, status }: { campaignId: string; rewardId: string; status: 'ACTIVE' | 'PAUSED'; name: string }) =>
-      updateCampaignReward(campaignId, rewardId, { status }),
-    onSuccess: (_, { status, name }) => {
-      refresh()
-      toast.success(status === 'PAUSED' ? 'Reward paused' : 'Reward resumed', { description: name })
-    },
-    onError: (e) => toast.error('Couldn’t change the reward', { description: apiErrorMessage(e) }),
-  })
-}
-
+/** Deletes a never-used template; the service archives it instead when campaigns already use it. */
 export function useDeleteReward() {
   const refresh = useRefreshRewards()
   return useMutation({
-    mutationFn: ({ campaignId, rewardId }: { campaignId: string; rewardId: string; name: string }) => deleteCampaignReward(campaignId, rewardId),
-    onSuccess: (_, { name }) => {
+    mutationFn: ({ templateId }: { templateId: string; name: string }) => deleteRewardTemplate(templateId),
+    onSuccess: (result, { name }) => {
       refresh()
-      toast.success('Reward deleted', { description: name })
+      toast.success(result.outcome === 'ARCHIVED' ? 'Reward archived' : 'Reward deleted', {
+        description: result.outcome === 'ARCHIVED' ? `${name} — campaigns using it keep their copy` : name,
+      })
     },
     onError: (e) => toast.error('Couldn’t delete the reward', { description: apiErrorMessage(e) }),
   })

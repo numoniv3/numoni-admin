@@ -3,13 +3,13 @@ import { toast } from 'sonner'
 import { getAccountPolicy, getJourneyState } from '@/lib/api/numoni/admin.api'
 import { apiErrorMessage } from '@/lib/api/numoni/errors'
 import {
-  getPointBalancesVsBooks, getPointPools, getPointReconciliation, listMints, listPointJournal, mintPoints, runPointReconciliation, setPoolsFrozen,
+  exportPointJournalCsv, getPointBalancesVsBooks, getPointPools, getPointReconciliation, listMints, listPointJournal, mintPoints, runPointReconciliation, setPoolsFrozen,
 } from '@/lib/api/numoni/points.api'
 import { numoniKeys } from '@/lib/api/numoni/query-keys'
 import type { JournalFilters, MintInput, PageFilters } from '@/lib/api/numoni/types/points'
 import type { PendingOperationFilters, ResolveAction } from '@/lib/api/numoni/types/wallet'
 import {
-  getWalletBalancesVsBooks, getWalletReconciliation, listAllWallets, listPendingOperations, listWalletLedger, resolvePendingOperation, runWalletCutoff,
+  getFiatAccounts, getWalletBalancesVsBooks, getWalletReconciliation, listAllWallets, listPendingOperations, listWalletLedger, resolvePendingOperation, runWalletCutoff,
 } from '@/lib/api/numoni/wallet.api'
 
 /*
@@ -83,6 +83,23 @@ export const usePointJournalQuery = (filters: JournalFilters = {}) =>
   useSuspenseQuery({ queryKey: P.journal(filters), queryFn: () => listPointJournal(filters) })
 
 export const usePointBalancesVsBooksQuery = () => useSuspenseQuery({ queryKey: P.balancesVsBooks(), queryFn: getPointBalancesVsBooks })
+
+/** Fiat funding accounts (`GET /wallet/admin/fiat`) — returned as-is (the spec doesn't type it). */
+export const useFiatAccountsQuery = (limit = 50) => useSuspenseQuery({ queryKey: W.fiat(limit), queryFn: () => getFiatAccounts(limit) })
+
+/** Downloads the point journal as CSV (`?format=csv`, up to 5,000 entries). */
+export function useExportPointJournal() {
+  return useMutation({
+    mutationFn: (filters: JournalFilters) => exportPointJournalCsv(filters),
+    onSuccess: (csv, f) => {
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }))
+      const a = Object.assign(document.createElement('a'), { href: url, download: `point-journal${f.from ? `-${f.from}` : ''}${f.to ? `-to-${f.to}` : ''}.csv` })
+      a.click()
+      URL.revokeObjectURL(url)
+    },
+    onError: (e) => toast.error('Export failed', { description: apiErrorMessage(e) }),
+  })
+}
 
 /** Pass one `idempotencyKey` per mint form so a retry can't mint twice. */
 export function useMintPoints() {

@@ -1,30 +1,23 @@
 'use client'
 
-import { Gift, Pause, Pencil, Play } from 'lucide-react'
+import { Gift, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { DataTable } from '@/components/ui/data-table'
 import { EmptyState, Pill } from '@/components/ui/kit'
-import type { CampaignResponseDto, RewardResponseDto, RewardRuleTypeOptionDto } from '@/lib/api/numoni/types/rewards'
-import { useSetRewardStatus } from '@/modules/ms/api/useRewardQueries'
+import type { RewardRuleTypeOptionDto, RewardTemplateResponseDto } from '@/lib/api/numoni/types/rewards'
 import { DeleteRewardButton } from './DeleteRewardButton'
 import { PRIZE_TONE, prizeSummary, ruleSummary } from './rule-fields'
 
-const CAMPAIGN_TONE: Record<CampaignResponseDto['status'], 'green' | 'sky' | 'neutral' | 'orange' | 'purple' | 'red'> = {
-  ACTIVE: 'green', SCHEDULED: 'sky', DRAFT: 'neutral', PAUSED: 'orange', COMPLETED: 'purple', CANCELLED: 'red',
-}
 const titleCase = (v: string) => v.charAt(0) + v.slice(1).toLowerCase().replace(/_/g, ' ')
 
 interface RewardsTableProps {
-  rewards: RewardResponseDto[]
-  campaigns: CampaignResponseDto[]
+  rewards: RewardTemplateResponseDto[]
   ruleTypes: RewardRuleTypeOptionDto[]
-  onEdit: (reward: RewardResponseDto) => void
+  onEdit: (reward: RewardTemplateResponseDto) => void
 }
 
-export function RewardsTable({ rewards, campaigns, ruleTypes, onEdit }: RewardsTableProps) {
-  const setStatus = useSetRewardStatus()
-  const campaignOf = (r: RewardResponseDto) => campaigns.find((c) => c.id === r.campaignId)
-  const ruleLabel = (r: RewardResponseDto) => ruleTypes.find((t) => t.value === r.ruleType)?.label ?? titleCase(r.ruleType)
+export function RewardsTable({ rewards, ruleTypes, onEdit }: RewardsTableProps) {
+  const ruleLabel = (r: RewardTemplateResponseDto) => ruleTypes.find((t) => t.value === r.ruleType)?.label ?? titleCase(r.ruleType)
 
   if (rewards.length === 0) {
     return (
@@ -49,17 +42,9 @@ export function RewardsTable({ rewards, campaigns, ruleTypes, onEdit }: RewardsT
             cell: ({ row: { original: r } }) => (
               <>
                 <div className="font-medium">{r.name}</div>
-                <div className="text-[11px] text-muted-foreground tnum">{r.reference}</div>
+                <div className="text-[11px] text-muted-foreground tnum">{r.reference} · v{r.version}</div>
               </>
             ),
-          },
-          {
-            id: 'campaign',
-            header: 'Campaign',
-            cell: ({ row: { original: r } }) => {
-              const c = campaignOf(r)
-              return c ? <div className="space-y-1"><div className="text-xs font-medium">{c.name}</div><Pill tone={CAMPAIGN_TONE[c.status]}>{titleCase(c.status)}</Pill></div> : '—'
-            },
           },
           {
             id: 'rule',
@@ -82,27 +67,23 @@ export function RewardsTable({ rewards, campaigns, ruleTypes, onEdit }: RewardsT
             ),
           },
           { id: 'direction', header: 'Direction', meta: { cellClassName: 'text-xs text-muted-foreground' }, cell: ({ row: { original: r } }) => titleCase(r.rewardDirection.replace('_REWARD', '')) },
-          { id: 'status', header: 'Status', cell: ({ row: { original: r } }) => <Pill tone={r.status === 'ACTIVE' ? 'green' : 'orange'}>{titleCase(r.status)}</Pill> },
+          {
+            id: 'used',
+            header: 'Used in',
+            meta: { cellClassName: 'text-xs tnum' },
+            cell: ({ row: { original: r } }) => (r.linkedRewardCount ? `${r.linkedRewardCount} campaign${r.linkedRewardCount > 1 ? 's' : ''}` : <span className="text-muted-foreground">Not in a campaign</span>),
+          },
+          { id: 'status', header: 'Status', cell: ({ row: { original: r } }) => <Pill tone={r.status === 'ACTIVE' ? 'green' : 'neutral'}>{titleCase(r.status)}</Pill> },
           {
             id: 'actions',
             header: '',
             meta: { stopRowClick: true },
-            cell: ({ row: { original: r } }) => {
-              const active = r.status === 'ACTIVE'
-              const busy = setStatus.isPending && setStatus.variables?.rewardId === r.id
-              return (
-                <div className="flex items-center gap-1 justify-end">
-                  <Button size="sm" variant="ghost" className="h-8" title="Edit" onClick={() => onEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button
-                    size="sm" variant="ghost" className="h-8" title={active ? 'Pause' : 'Resume'} disabled={busy}
-                    onClick={() => setStatus.mutate({ campaignId: r.campaignId, rewardId: r.id, status: active ? 'PAUSED' : 'ACTIVE', name: r.name })}
-                  >
-                    {active ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
-                  </Button>
-                  <DeleteRewardButton reward={r} />
-                </div>
-              )
-            },
+            cell: ({ row: { original: r } }) => r.status === 'ACTIVE' && (
+              <div className="flex items-center gap-1 justify-end">
+                <Button size="sm" variant="ghost" className="h-8" title="Edit" onClick={() => onEdit(r)}><Pencil className="h-3.5 w-3.5" /></Button>
+                <DeleteRewardButton reward={r} />
+              </div>
+            ),
           },
         ]}
       />

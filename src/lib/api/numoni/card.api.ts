@@ -1,7 +1,7 @@
 import { NUMONI_ENDPOINTS } from './endpoints'
 import * as fx from './mocks/card'
 import { apiGet, apiSend, cast } from './request'
-import type { CardActivateCardBody, CardBatchResponseDto, CardChargeCardBody, CardChargeCardByIdBody, CardDto, CardGetCardLedgerResult, CardGetEnumCatalogResult, CardGiveCardBody, CardInitiateUnlockBody, CardIssueCardRewardBody, CardListCardsParams, CardListMyCardsResult, CardMintCardsBody, CardOptInBody, CardOptInResponseDto, CardReverseCardTransactionBody, CardTransactionDto, CardUpdateCardStatusBody, CardVerifyUnlockBody, InitiateUnlockResponseDto, ListCardsResponseDto, VerifyUnlockResponseDto } from './types/card'
+import type { AllEnumsResponseDto, CardActivateCardBody, CardBatchResponseDto, CardChargeCardBody, CardChargeCardByIdBody, CardDto, CardGetCardLedgerResult, CardGetCardLockStatusesResult, CardGetCardSchemesResult, CardGetCardStatusesResult, CardGetChargeBlockReasonsResult, CardGetTransactionTypesResult, CardGiveCardBody, CardInitiateUnlockBody, CardIssueCardRewardBody, CardListCardsParams, CardListMyCardsResult, CardMintCardsBody, CardOptInBody, CardOptInResponseDto, CardReverseCardTransactionBody, CardSensitiveDetailsDto, CardTransactionDto, CardUpdateCardStatusBody, CardVerifyUnlockBody, InitiateUnlockResponseDto, ListCardsResponseDto, VerifyUnlockResponseDto } from './types/card'
 
 /*
  * Card MS through the Gateway (`/card/*`). Exported from the barrel as
@@ -85,7 +85,7 @@ export function issueCardReward(id: string, body: CardIssueCardRewardBody): Prom
 
 /**
  * Initiate Closed-Loop 60-Second Unlock Challenge
- * Merchant enters customer phone number to verify their active closed-loop card and triggers a verification OTP challenge.
+ * Step 1 of paying with a CLOSED_LOOP card at the till. The merchant enters the customer's phone number; an OTP challenge (valid 5 minutes) is created for their active closed-loop card. This is the payment lock (`lockStatus`), not suspension: the card stays `ACTIVE` throughout.
  * @endpoint POST /card/cards/unlock/initiate
  */
 export function initiateUnlock(body: CardInitiateUnlockBody): Promise<InitiateUnlockResponseDto> {
@@ -94,7 +94,7 @@ export function initiateUnlock(body: CardInitiateUnlockBody): Promise<InitiateUn
 
 /**
  * Verify OTP and Open 60-Second Unlock Window
- * Merchant verifies customer phone + OTP. Unlocks the card for exactly 60 seconds (unlockedUntil = now + 60s) allowing it to be charged.
+ * Step 2: the merchant submits the customer's OTP. The card's `lockStatus` becomes UNLOCKED for 60 seconds (`unlockedUntil` = now + 60s), so `POST /cards/charge` can go through. The card re-locks (FROZEN) after the charge or when the window ends.
  * @endpoint POST /card/cards/unlock/verify
  */
 export function verifyUnlock(body: CardVerifyUnlockBody): Promise<VerifyUnlockResponseDto> {
@@ -129,8 +129,17 @@ export function reverseCardTransaction(ref: string, body: CardReverseCardTransac
 }
 
 /**
- * Update Card Status (Suspend / Unsuspend)
- * Update Card Status (Suspend / Unsuspend). Needs a signed-in user token.
+ * Suspend / Unsuspend / Cancel a Card (lifecycle status)
+ * Changes the card's lifecycle `status` — whether the card is switched on. It does **not** open or close the closed-loop payment lock (that is `POST /cards/unlock/*`).
+ * | From | To | Who |
+ * |---|---|---|
+ * | ACTIVE | SUSPENDED | customer (own card), issuing merchant, admin |
+ * | SUSPENDED | ACTIVE | the level that suspended it or higher (see below) |
+ * | ACTIVE / SUSPENDED | CANCELLED or EXPIRED (final) | issuing merchant, admin |
+ * | MINTED / GIVEN_TO_CUSTOMER | CANCELLED (final) | issuing merchant, admin |
+ * **Who can unsuspend.** The card records who suspended it (`suspendedBy`). A customer suspension can be lifted by the customer, the issuing merchant or an admin; a merchant suspension only by the merchant or an admin; an admin suspension only by an admin (otherwise 403). If the merchant or an admin suspends a card the customer already suspended, the card is re-marked with the higher level. Suspensions made before this was recorded (`suspendedBy: null`) can be lifted by anyone allowed to manage the card.
+ * Otherwise, sending the card's current status is a no-op. Any other move returns 400 (activation uses `POST /cards/activate`; cancelled and expired cards cannot be revived).
+ * For OPEN_LOOP cards, SUSPENDED, CANCELLED and EXPIRED also freeze the card on LedgerBlock, and ACTIVE unfreezes it.
  * @endpoint PATCH /card/cards/{id}/status
  */
 export function updateCardStatus(id: string, body: CardUpdateCardStatusBody): Promise<CardDto> {
@@ -147,50 +156,64 @@ export function getCardLedger(id: string): Promise<CardGetCardLedgerResult> {
 }
 
 /**
+ * Get Card Sensitive Details (PCI DSS Live Proxy)
+ * Allows verified cardholders or issuing merchants to reveal full PAN, CVV, and expiry date. For Open-Loop cards, proxies live to LedgerBlock.
+ * @endpoint GET /card/cards/{id}/details
+ */
+export function getCardDetails(id: string): Promise<CardSensitiveDetailsDto> {
+  return apiGet<CardSensitiveDetailsDto>(E.cardDetails(id), () => fx.cardSensitiveDetails)
+}
+
+/**
  * Get All Card Microservice Enums
- * Get All Card Microservice Enums.
+ * Retrieves dictionary of all domain enumerations used across card schemes, statuses, locks, and transactions.
  * @endpoint GET /card/enums
  */
-export function getEnumCatalog(): Promise<CardGetEnumCatalogResult> {
-  return apiGet<CardGetEnumCatalogResult>(E.enums, () => fx.getEnumCatalogResult)
+export function getEnumCatalog(): Promise<AllEnumsResponseDto> {
+  return apiGet<AllEnumsResponseDto>(E.enums, () => fx.allEnumsResponse)
 }
 
 /**
  * Card Schemes (CLOSED_LOOP, OPEN_LOOP)
  * Card Schemes (CLOSED_LOOP, OPEN_LOOP).
- * The spec leaves the response untyped.
  * @endpoint GET /card/enums/card-schemes
  */
-export function getCardSchemes(): Promise<unknown> {
-  return apiGet<unknown>(E.enumsCardSchemes, () => ({}))
+export function getCardSchemes(): Promise<CardGetCardSchemesResult> {
+  return apiGet<CardGetCardSchemesResult>(E.enumsCardSchemes, () => fx.getCardSchemesResult)
 }
 
 /**
- * Card Statuses
- * Card Statuses.
- * The spec leaves the response untyped.
+ * Card Statuses (lifecycle: is the card switched on?)
+ * MINTED → GIVEN_TO_CUSTOMER → ACTIVE ⇄ SUSPENDED; EXPIRED and CANCELLED are final. SUSPENDED = card turned off (PATCH /cards/:id/status). Separate from lock statuses.
  * @endpoint GET /card/enums/card-statuses
  */
-export function getCardStatuses(): Promise<unknown> {
-  return apiGet<unknown>(E.enumsCardStatuses, () => ({}))
+export function getCardStatuses(): Promise<CardGetCardStatusesResult> {
+  return apiGet<CardGetCardStatusesResult>(E.enumsCardStatuses, () => fx.getCardStatusesResult)
 }
 
 /**
- * Card Lock Statuses (UNLOCKED, FROZEN)
- * Card Lock Statuses (UNLOCKED, FROZEN).
- * The spec leaves the response untyped.
+ * Card Lock Statuses (payment lock: open for a charge right now?)
+ * FROZEN is the normal resting state of an ACTIVE closed-loop card; it opens (UNLOCKED) for 60 seconds after the customer's OTP. Open-loop cards are FROZEN only while suspended. Separate from card statuses; use canCharge / chargeBlockedReason on the card to decide what to show.
  * @endpoint GET /card/enums/card-lock-statuses
  */
-export function getCardLockStatuses(): Promise<unknown> {
-  return apiGet<unknown>(E.enumsCardLockStatuses, () => ({}))
+export function getCardLockStatuses(): Promise<CardGetCardLockStatusesResult> {
+  return apiGet<CardGetCardLockStatusesResult>(E.enumsCardLockStatuses, () => fx.getCardLockStatusesResult)
+}
+
+/**
+ * Charge Block Reasons (values of chargeBlockedReason)
+ * Why a card cannot be charged right now: CARD_NOT_ACTIVATED, CARD_SUSPENDED, CARD_EXPIRED, CARD_CANCELLED, UNLOCK_REQUIRED (closed-loop, needs the customer's OTP; the normal resting state), CARD_FROZEN (open-loop, frozen on the card network).
+ * @endpoint GET /card/enums/charge-block-reasons
+ */
+export function getChargeBlockReasons(): Promise<CardGetChargeBlockReasonsResult> {
+  return apiGet<CardGetChargeBlockReasonsResult>(E.enumsChargeBlockReasons, () => fx.getChargeBlockReasonsResult)
 }
 
 /**
  * Card Transaction Types
  * Card Transaction Types.
- * The spec leaves the response untyped.
  * @endpoint GET /card/enums/transaction-types
  */
-export function getTransactionTypes(): Promise<unknown> {
-  return apiGet<unknown>(E.enumsTransactionTypes, () => ({}))
+export function getTransactionTypes(): Promise<CardGetTransactionTypesResult> {
+  return apiGet<CardGetTransactionTypesResult>(E.enumsTransactionTypes, () => fx.getTransactionTypesResult)
 }

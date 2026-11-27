@@ -295,11 +295,11 @@ export interface CreateStoreDto {
   /** External merchant id from the client platform. Not the same as ownerId (JWT userId). */
   merchantId?: string
   /**
-   * Business industries. Preferred over legacy `industry`. At least one of industry or industries is required on create.
+   * **Required on create: send `industries` or `industry` with at least one value, otherwise 400 "At least one industry is required (send industry or industries)".** Preferred over the legacy `industry`; the first value is also stored as `industry`. Use values from `GET /industries`. In multipart/form-data send it as a repeated `industries` field, a JSON string (`["Fashion","Retail"]`) or a comma-separated string (`Fashion,Retail`).
    */
   industries?: string[]
   /**
-   * Legacy single industry label. Use industries[] instead. If only this is sent, it is stored as industries[0].
+   * Legacy single industry. **On create, required only when `industries` is not sent.** Prefer `industries`; if only this is sent, it is stored as industries[0].
    */
   industry?: string
   /** Business Logo */
@@ -374,11 +374,11 @@ export interface UpdateStoreDto {
   /** External merchant id from the client platform. Not the same as ownerId (JWT userId). */
   merchantId?: string
   /**
-   * Business industries. Preferred over legacy `industry`. At least one of industry or industries is required on create.
+   * **Required on create: send `industries` or `industry` with at least one value, otherwise 400 "At least one industry is required (send industry or industries)".** Preferred over the legacy `industry`; the first value is also stored as `industry`. Use values from `GET /industries`. In multipart/form-data send it as a repeated `industries` field, a JSON string (`["Fashion","Retail"]`) or a comma-separated string (`Fashion,Retail`).
    */
   industries?: string[]
   /**
-   * Legacy single industry label. Use industries[] instead. If only this is sent, it is stored as industries[0].
+   * Legacy single industry. **On create, required only when `industries` is not sent.** Prefer `industries`; if only this is sent, it is stored as industries[0].
    */
   industry?: string
   /** Business Logo */

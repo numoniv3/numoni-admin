@@ -12,7 +12,7 @@ export const STORE_CREATE: Field[] = [
   { key: 'storeType', label: 'Sells', kind: 'select', options: ['PRODUCT', 'SERVICE'], required: true },
   { key: 'country', label: 'Country', required: true, placeholder: 'Nigeria' },
   { key: 'logo', label: 'Logo', kind: 'file', accept: 'image/*', required: true },
-  { key: 'industry', label: 'Industry' },
+  { key: 'industry', label: 'Industry', required: true, hint: 'Required — e.g. Fashion, Retail.' },
   { key: 'industries', label: 'Other industries', kind: 'list' },
   { key: 'phoneNumber', label: 'Phone numbers', kind: 'phones', hint: 'Comma separated, with country codes — e.g. +234 803 555 0142.' },
   { key: 'address', label: 'Address', wide: true },

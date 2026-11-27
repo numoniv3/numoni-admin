@@ -1,7 +1,7 @@
 // ── Consumer app fixtures (the signed-in customer) ──────────────────────────
 // Served by `consumer.api.ts` while API mocking is on. Shapes follow specs/numoni.json.
 import type {
-  ActivityItem, Address, BrandWallet, CardExpense, NearbyOffer, Notice, Order, PromoBanner, SupportFaq,
+  ActivityItem, Address, Funding, BrandWallet, CardExpense, NearbyOffer, Notice, Order, PromoBanner, SupportFaq,
   WalkInBrand,
 } from '../types/consumer'
 
@@ -136,3 +136,20 @@ export const consumerOfferCatalogue: NearbyOffer[] = [
   { id: 'of6', kind: 'grant', title: 'Weekend ₦1,000 grocery grant', brand: 'Charles Store', color: '#7C5CBF', where: 'Wuse II, Abuja', area: 'Wuse', dist: '5.1 km', spendReq: 'Spend ₦15,000 on groceries, Sat–Sun', reward: '₦1,000 back into your Global Wallet', expiry: 'Dec 31', model: 'V2', desc: 'Weekend carts over ₦15,000 earn a flat grant, every weekend until December.' },
   { id: 'of7', kind: 'deal', title: '7% off Redmi Note 13', brand: 'Slot', color: '#0EA5E9', where: 'Computer Village, Ikeja', area: 'Ikeja', dist: '4.4 km', spendReq: 'Buy any Redmi Note 13 in-store', reward: '7% off + 1% back in points', expiry: 'Oct 20', model: 'V3', desc: 'Device deal at the flagship store. Points earned stay locked to Slot for your next accessory.' },
 ]
+
+/** A Buy Points purchase awaiting the bank transfer (mock mode). */
+export const fundingFixture = (amount: string): Funding => {
+  const naira = Number(amount)
+  return {
+    id: crypto.randomUUID(),
+    status: 'awaiting_payment',
+    walletStatus: 'awaiting_payment',
+    reference: `WALLET_BUY_${Date.now().toString(36).toUpperCase()}`,
+    amount: naira.toFixed(2),
+    pointsExpected: naira.toFixed(6),
+    bonusPreview: { points: (naira * 0.05).toFixed(6), ratePercent: '5', basis: 'estimate', note: 'Estimate only (about 5% of the naira amount). Reward MS decides the actual bonus after payment; this preview is not a credit.' },
+    dedicatedAccount: { number: '8012345678', bank: 'Wema Bank', name: 'nuMoni / Demo Customer' },
+    pointsCredited: null,
+    bonusCredited: null,
+  }
+}

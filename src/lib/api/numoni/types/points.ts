@@ -35,6 +35,11 @@ export interface MintInput {
   rate: string
   fundingSource?: string
   reference?: string
+  /**
+   * The completed PayOnUs payment backing this mint (buy-order or PayOnUs reference).
+   * Wallet MS checks it completed and that `fiatAmount` fits what is left of it.
+   */
+  paymentReference?: string
 }
 
 /** `MintResultDto`. */
@@ -47,6 +52,8 @@ export interface MintResult {
   journalEntryId: string
   totalMinted: string
   buyPoolBalance: string
+  /** Wallet MS fiat funding journal backing this mint (null only when fiat funding isn’t required). */
+  fiatFundingReference: string | null
 }
 
 /** One row of `GET /points/admin/mints` (untyped in the spec — read as `MintResultDto` + timestamp). */
@@ -68,6 +75,10 @@ export interface PageFilters {
 export interface JournalFilters extends PageFilters {
   /** e.g. `POINT_MINT_`, `WALLET_BUY_`. */
   referencePrefix?: string
+  /** ISO date or date-time, inclusive. */
+  from?: string
+  /** ISO date (whole day included) or date-time, exclusive. */
+  to?: string
 }
 
 /** `ReconciliationReportDto`. Balanced when `totalMinted = buyPool + sellPool + externalWalletsTotal`. */

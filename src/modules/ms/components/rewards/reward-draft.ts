@@ -1,19 +1,18 @@
-import type { CampaignResponseDto, CreateRewardDto, RewardResponseDto, RewardRuleConfigDto } from '@/lib/api/numoni/types/rewards'
+import type { CreateRewardTemplateDto, RewardResponseDto, RewardRuleConfigDto, RewardTemplateResponseDto } from '@/lib/api/numoni/types/rewards'
 import { RULE_FIELDS, type PrizeType, type RuleField, type RuleType, type Weekday } from './rule-fields'
 
-/** The reward form's values, as typed (strings for inputs), and their mapping to `CreateRewardDto`. */
+/** The reward form's values, as typed (strings for inputs), and their mapping to `CreateRewardTemplateDto`. */
 export interface RewardDraft {
-  /** An existing campaign's id, or `NEW_CAMPAIGN`. */
-  campaignId: string
-  newCampaignName: string
-  newCampaignChannel: CampaignResponseDto['channel']
   name: string
   direction: RewardResponseDto['rewardDirection']
   ruleType: RuleType
   config: Partial<Record<RuleField, string>>
   weekdays: Weekday[]
   prizeType: PrizeType
+  /** POINTS: a fixed number, or a percentage of the purchase (`prizePercent`). */
+  pointsMode: 'fixed' | 'percent'
   points: string
+  percent: string
   couponCode: string
   couponDiscount: string
   couponExpiry: string
@@ -27,20 +26,19 @@ export interface RewardDraft {
   maxPerTxn: string
 }
 
-export const NEW_CAMPAIGN = '__new__'
-
-export const emptyDraft = (campaignId = ''): RewardDraft => ({
-  campaignId, newCampaignName: '', newCampaignChannel: 'ALL',
+export const emptyDraft = (): RewardDraft => ({
   name: '', direction: 'FORWARD_REWARD', ruleType: 'FIRST_TIME_CUSTOMERS', config: {}, weekdays: [],
-  prizeType: 'POINTS', points: '', couponCode: '', couponDiscount: '', couponExpiry: '',
+  prizeType: 'POINTS', pointsMode: 'fixed', points: '', percent: '', couponCode: '', couponDiscount: '', couponExpiry: '',
   giftName: '', giftPhysical: true, giftDescription: '', giftDelivery: '', raffleTickets: '1', raffleDescription: '',
   maxPerUser: '', maxPerTxn: '',
 })
 
 const text = (v: unknown) => (v === undefined || v === null ? '' : String(v))
 
-export function draftFromReward(r: RewardResponseDto): RewardDraft {
+export function draftFromReward(r: RewardTemplateResponseDto): RewardDraft {
   const c = r.ruleConfig ?? {}
+  // Campaign rewards carry `prizePercent`; template responses may not (yet).
+  const percent = (r as { prizePercent?: number | null }).prizePercent
   const config: Partial<Record<RuleField, string>> = {}
   for (const key of Object.keys(RULE_FIELDS) as RuleField[]) {
     if (key === 'deadTimeDaysOfWeek') continue
@@ -48,9 +46,9 @@ export function draftFromReward(r: RewardResponseDto): RewardDraft {
     if (v !== undefined && v !== null) config[key] = key === 'eventDate' ? String(v).slice(0, 10) : String(v)
   }
   return {
-    ...emptyDraft(r.campaignId),
+    ...emptyDraft(),
     name: r.name, direction: r.rewardDirection, ruleType: r.ruleType, config, weekdays: c.deadTimeDaysOfWeek ?? [],
-    prizeType: r.prizeType, points: text(r.prizeValue),
+    prizeType: r.prizeType, pointsMode: percent ? 'percent' : 'fixed', points: text(r.prizeValue), percent: text(percent),
     couponCode: text(r.couponDetails?.couponCode), couponDiscount: text(r.couponDetails?.discountPercent), couponExpiry: text(r.couponDetails?.expiryDays),
     giftName: text(r.giftDetails?.name), giftPhysical: r.giftDetails?.isPhysical ?? true,
     giftDescription: text(r.giftDetails?.description), giftDelivery: text(r.giftDetails?.deliveryInstructions),
@@ -69,7 +67,7 @@ const num = (v: string | undefined) => {
  * Builds the request body, keeping only the rule fields the chosen type uses
  * (`applicableFields`). Returns an error message for anything the service would reject.
  */
-export function draftToBody(d: RewardDraft, applicableFields: string[]): { body: CreateRewardDto } | { error: string } {
+export function draftToBody(d: RewardDraft, applicableFields: string[]): { body: CreateRewardTemplateDto } | { error: string } {
   if (!d.name.trim()) return { error: 'Name the reward' }
 
   const ruleConfig: RewardRuleConfigDto = {}
@@ -91,7 +89,7 @@ export function draftToBody(d: RewardDraft, applicableFields: string[]): { body:
     return { error: 'Set an inactivity range, slow days or slow hours' }
   }
 
-  const body: CreateRewardDto = {
+  const body: CreateRewardTemplateDto = {
     name: d.name.trim(), rewardDirection: d.direction, ruleType: d.ruleType, prizeType: d.prizeType,
     ...(Object.keys(ruleConfig).length ? { ruleConfig } : {}),
     ...(num(d.maxPerUser) !== undefined ? { maxRewardPerUser: num(d.maxPerUser) } : {}),
@@ -99,8 +97,15 @@ export function draftToBody(d: RewardDraft, applicableFields: string[]): { body:
   }
   switch (d.prizeType) {
     case 'POINTS':
-      if (!num(d.points) || num(d.points)! <= 0) return { error: 'Set how many points the customer gets' }
-      body.prizeValue = num(d.points)
+      if (d.pointsMode === 'percent') {
+        const p = num(d.percent)
+        if (!p || p <= 0) return { error: 'Set the percentage of the purchase' }
+        if (p > 100) return { error: 'The percentage can’t be more than 100' }
+        body.prizePercent = p
+      } else {
+        if (!num(d.points) || num(d.points)! <= 0) return { error: 'Set how many points the customer gets' }
+        body.prizeValue = num(d.points)
+      }
       break
     case 'COUPON':
       if (!d.couponCode.trim() && num(d.couponDiscount) === undefined) return { error: 'Set a coupon code or discount' }

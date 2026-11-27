@@ -6,33 +6,36 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
-import type { RewardResponseDto } from '@/lib/api/numoni/types/rewards'
+import type { RewardTemplateResponseDto } from '@/lib/api/numoni/types/rewards'
 import { useDeleteReward } from '@/modules/ms/api/useRewardQueries'
 
-/** Deleting is permanent on the Reward MS, so it asks first. */
-export function DeleteRewardButton({ reward }: { reward: RewardResponseDto }) {
+/** Deletes an unused reward; one that campaigns already use is archived instead. Asks first. */
+export function DeleteRewardButton({ reward }: { reward: RewardTemplateResponseDto }) {
   const remove = useDeleteReward()
+  const inUse = reward.linkedRewardCount > 0
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-8 text-muted-foreground hover:text-red-500" title="Delete" disabled={remove.isPending}>
+        <Button size="sm" variant="ghost" className="h-8 text-muted-foreground hover:text-red-500" title={inUse ? 'Archive' : 'Delete'} disabled={remove.isPending}>
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete “{reward.name}”?</AlertDialogTitle>
+          <AlertDialogTitle>{inUse ? 'Archive' : 'Delete'} “{reward.name}”?</AlertDialogTitle>
           <AlertDialogDescription>
-            It’s removed from its campaign and stops rewarding customers. To stop it for a while instead, pause it.
+            {inUse
+              ? `It’s used in ${reward.linkedRewardCount} campaign${reward.linkedRewardCount > 1 ? 's' : ''}, so it’s archived: hidden from your library and can’t be added to new campaigns. Campaigns using it keep their copy.`
+              : 'It’s removed from your reward library permanently.'}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
             className="bg-red-500 text-white hover:bg-red-500/90"
-            onClick={() => remove.mutate({ campaignId: reward.campaignId, rewardId: reward.id, name: reward.name })}
+            onClick={() => remove.mutate({ templateId: reward.id, name: reward.name })}
           >
-            Delete reward
+            {inUse ? 'Archive reward' : 'Delete reward'}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

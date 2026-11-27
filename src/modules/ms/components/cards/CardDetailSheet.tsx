@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { CardDto } from '@/lib/api/numoni/types/card'
 import { fmtNaira } from '@/lib/format'
 import { useCardQuery, useSetCardStatus } from '@/modules/ms/api/useCardQueries'
-import { STATUS_TONE, fmtDate, isUnlocked, maskPan, titleCase } from './card-meta'
+import { ConfirmButton } from '@/modules/ms/components/shared/bits'
+import { STATUS_TONE, canReinstate, chargeState, fmtDate, maskPan, titleCase } from './card-meta'
 import { CardLedger } from './CardLedger'
 import { ChargeCardPanel } from './ChargeCardPanel'
 import { GiveCardForm } from './GiveCardForm'
@@ -28,9 +29,10 @@ export function CardDetailSheet({ card: row, onClose }: CardDetailSheetProps) {
   const ended = card.status === 'EXPIRED' || card.status === 'CANCELLED'
   const facts: [string, string][] = [
     ['Card number', maskPan(card.cardNumber)], ['Scheme', card.scheme === 'CLOSED_LOOP' ? 'Closed loop' : 'Open loop'],
-    ['Customer', card.customerPhone ?? 'Not assigned'], ['Lock', isUnlocked(card) ? 'Unlocked' : 'Frozen'],
+    ['Customer', card.customerPhone ?? 'Not assigned'], ['Payments', chargeState(card)],
     ['Loaded', fmtNaira(card.totalLoaded, 0)], ['Spent', fmtNaira(card.totalSpent, 0)],
     ['Activated', fmtDate(card.activatedAt)], ['Expires', fmtDate(card.expiresAt)], ['Batch', card.batchReference ?? '—'],
+    ...(card.status === 'SUSPENDED' ? [['Suspended', `${fmtDate(card.suspendedAt)}${card.suspendedBy ? ` by ${titleCase(card.suspendedBy).toLowerCase()}` : ''}`] as [string, string]] : []),
   ]
 
   return (
@@ -60,15 +62,28 @@ export function CardDetailSheet({ card: row, onClose }: CardDetailSheetProps) {
                 <div key={k} className="flex justify-between gap-4 px-4 py-2 text-sm"><span className="text-muted-foreground">{k}</span><span className="font-medium tnum text-right">{v}</span></div>
               ))}
             </div>
-            {!ended && (
-              <Button
-                variant="outline"
-                className="w-full rounded-full"
-                disabled={setStatus.isPending}
-                onClick={() => setStatus.mutate({ id: card.reference, status: card.status === 'SUSPENDED' ? 'ACTIVE' : 'SUSPENDED' })}
-              >
-                {card.status === 'SUSPENDED' ? <><RotateCcw className="h-4 w-4 mr-1.5" /> Reinstate card</> : <><Ban className="h-4 w-4 mr-1.5" /> Suspend card</>}
+            {/* Lifecycle only (PATCH /cards/:id/status) — the closed-loop payment lock is the Charge tab. */}
+            {card.status === 'ACTIVE' && (
+              <Button variant="outline" className="w-full rounded-full" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: card.reference, status: 'SUSPENDED' })}>
+                <Ban className="h-4 w-4 mr-1.5" /> Suspend card
               </Button>
+            )}
+            {card.status === 'SUSPENDED' && (canReinstate(card, 'MERCHANT') ? (
+              <Button variant="outline" className="w-full rounded-full" disabled={setStatus.isPending} onClick={() => setStatus.mutate({ id: card.reference, status: 'ACTIVE' })}>
+                <RotateCcw className="h-4 w-4 mr-1.5" /> Reinstate card
+              </Button>
+            ) : (
+              <p className="text-xs text-muted-foreground text-center">Suspended by nuMoni — only an admin can reinstate it.</p>
+            ))}
+            {!ended && (
+              <div className="flex justify-center">
+                <ConfirmButton
+                  danger label="Cancel card" title="Cancel this card for good?"
+                  description="A cancelled card can’t be charged, loaded or reinstated. This can’t be undone."
+                  disabled={setStatus.isPending}
+                  onConfirm={() => setStatus.mutate({ id: card.reference, status: 'CANCELLED' })}
+                />
+              </div>
             )}
           </TabsContent>
           <TabsContent value="give" className="mt-4"><GiveCardForm card={card} /></TabsContent>

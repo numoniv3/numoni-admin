@@ -1,4 +1,4 @@
-import type { CampaignResponseDto } from '@/lib/api/numoni/types/rewards'
+import type { CampaignResponseDto, RewardResponseDto } from '@/lib/api/numoni/types/rewards'
 import type { CampaignAction } from '@/modules/ms/api/useCampaignQueries'
 
 export type CampaignStatus = CampaignResponseDto['status']
@@ -44,3 +44,27 @@ export const dayToIso = (day: string, endOfDay = false) => (day ? new Date(`${da
 
 /** Comma/newline separated text → trimmed list. */
 export const toList = (text: string) => text.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)
+
+type RuleSettings = Pick<RewardResponseDto, 'ruleType' | 'ruleConfig'>
+
+/**
+ * Rule pairs the Reward MS rejects (400) on one campaign — checked before
+ * attaching so the merchant sees why. `null` when the reward can be added.
+ */
+export function ruleConflict(adding: RuleSettings & { name: string }, onCampaign: (RuleSettings & { name: string })[]): string | null {
+  for (const r of onCampaign) {
+    const pair = new Set([adding.ruleType, r.ruleType])
+    const has = (a: string, b: string) => pair.has(a as never) && pair.has(b as never) && pair.size === 2
+    if (has('FIRST_TIME_CUSTOMERS', 'REACTIVATION_DORMANCY') || has('FIRST_TIME_CUSTOMERS', 'DURATION_OF_PATRONAGE')) {
+      return `Can’t be on the same campaign as “${r.name}” (${titleCase(r.ruleType)}).`
+    }
+    if (has('BY_FREQUENCY', 'REACTIVATION_DORMANCY')) {
+      const freq = adding.ruleType === 'BY_FREQUENCY' ? adding : r
+      const dormant = adding.ruleType === 'REACTIVATION_DORMANCY' ? adding : r
+      const window = freq.ruleConfig?.frequencyWindowDays ?? 30
+      const inactive = dormant.ruleConfig?.inactivityDays ?? 30
+      if (window <= inactive) return `With “${r.name}” on the campaign, the visit window (${window} days) must be longer than the inactivity period (${inactive} days).`
+    }
+  }
+  return null
+}

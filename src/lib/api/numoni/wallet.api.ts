@@ -497,3 +497,19 @@ export function resolvePendingOperation(id: string, action: ResolveAction = 'ret
     () => ({ ...pendingOperations.find((p) => p.id === id), id, status: action === 'retry' ? 'resolved' : 'compensated' }),
   )
 }
+
+/**
+ * Fiat funding accounts: FIAT_BANK_NGN and FIAT_POINTS_BACKING_NGN balances
+ * (equal by construction), lifetime funded/reversed totals, counts and the
+ * most recent funding and reversal journals. The spec doesn't type the body,
+ * so it's returned as-is.
+ * @endpoint GET /wallet/admin/fiat
+ */
+export function getFiatAccounts(limit = 50): Promise<Obj> {
+  return apiRead(E.admin.fiat, obj, () => ({
+    accounts: { FIAT_BANK_NGN: '2500000.00', FIAT_POINTS_BACKING_NGN: '2500000.00' },
+    totals: { funded: '2600000.00', reversed: '100000.00', fundings: 41, reversals: 2 },
+    recentFundings: [{ reference: 'FIAT_FUNDING:POINT_MINT_DEMO1', amount: '100000.00', paymentReference: 'BUY_DEMO1', createdAt: new Date().toISOString() }],
+    recentReversals: [],
+  }), { limit })
+}

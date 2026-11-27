@@ -1,5 +1,5 @@
 /* Fixtures for Reward MS, built from the spec's examples. */
-import type { AllCampaignsViewDataDto, AllEnumsCatalogDto, CampaignBudgetResponseDto, CampaignEvaluationResponseDto, CampaignGuardrailResponseDto, CampaignLedgerResponseDto, CampaignResponseDto, CouponSweepResultDto, EngagementSweepResultDto, EscrowAuditResultDto, OptInResponseDto, ProgressArchivalResultDto, QueueStatusResponseDto, QueueSweepResultDto, RaffleDrawResultDto, RewardApiResponseDto, RewardGetCampaignChannelsResult, RewardGetCampaignStatusesResult, RewardGetEventKindsResult, RewardGetFundingSourcesResult, RewardGetGamificationTriggersResult, RewardGetGiftCategoriesResult, RewardGetKycTiersResult, RewardGetPrizeTypesResult, RewardGetRewardDirectionsResult, RewardGetRewardRuleTypesResult, RewardGetWizardStepsResult, RewardListCampaignRewardsResult, RewardResponseDto, RewardReversalResponseDto } from '../types/rewards'
+import type { AllCampaignsViewDataDto, AllEnumsCatalogDto, CampaignBudgetResponseDto, CampaignEvaluationResponseDto, CampaignGuardrailResponseDto, CampaignLedgerResponseDto, CampaignResponseDto, CouponSweepResultDto, DeleteRewardTemplateResultDto, EngagementSweepResultDto, EscrowAuditResultDto, OptInResponseDto, ProgressArchivalResultDto, QueueStatusResponseDto, QueueSweepResultDto, RaffleDrawResultDto, ReplayOutboxResultDto, RewardApiResponseDto, RewardGetCampaignChannelsResult, RewardGetCampaignStatusesResult, RewardGetEventKindsResult, RewardGetFundingSourcesResult, RewardGetGamificationTriggersResult, RewardGetGiftCategoriesResult, RewardGetKycTiersResult, RewardGetPrizeTypesResult, RewardGetRewardDirectionsResult, RewardGetRewardRuleTypesResult, RewardGetWizardStepsResult, RewardListCampaignRewardsResult, RewardListRewardTemplatesResult, RewardResponseDto, RewardReversalResponseDto, RewardTemplateResponseDto } from '../types/rewards'
 
 export const allEnumsCatalog: AllEnumsCatalogDto = {
   rewardDirections: [
@@ -262,6 +262,14 @@ export const campaignResponse: CampaignResponseDto = {
       maxRewardPerUser: 5,
       maxRewardPerTxn: 1000,
       status: 'ACTIVE',
+      templateId: 'tpl_123',
+      templateVersion: 2,
+      templateOverrides: {
+        prizeValue: 750,
+        maxRewardPerUser: 3,
+        maxRewardPerTxn: 1000,
+        minSpend: 5000,
+      },
       createdAt: '2026-10-20T11:00:00.000Z',
       updatedAt: '2026-10-20T11:00:00.000Z',
     },
@@ -365,6 +373,14 @@ export const allCampaignsViewData: AllCampaignsViewDataDto = {
           maxRewardPerUser: 5,
           maxRewardPerTxn: 1000,
           status: 'ACTIVE',
+          templateId: 'tpl_123',
+          templateVersion: 2,
+          templateOverrides: {
+            prizeValue: 750,
+            maxRewardPerUser: 3,
+            maxRewardPerTxn: 1000,
+            minSpend: 5000,
+          },
           createdAt: '2026-10-20T11:00:00.000Z',
           updatedAt: '2026-10-20T11:00:00.000Z',
         },
@@ -422,6 +438,14 @@ export const rewardResponse: RewardResponseDto = {
   maxRewardPerUser: 5,
   maxRewardPerTxn: 1000,
   status: 'ACTIVE',
+  templateId: 'tpl_123',
+  templateVersion: 2,
+  templateOverrides: {
+    prizeValue: 750,
+    maxRewardPerUser: 3,
+    maxRewardPerTxn: 1000,
+    minSpend: 5000,
+  },
   createdAt: '2026-10-20T11:00:00.000Z',
   updatedAt: '2026-10-20T11:00:00.000Z',
 }
@@ -473,6 +497,14 @@ export const listCampaignRewardsResult: RewardListCampaignRewardsResult = [
     maxRewardPerUser: 5,
     maxRewardPerTxn: 1000,
     status: 'ACTIVE',
+    templateId: 'tpl_123',
+    templateVersion: 2,
+    templateOverrides: {
+      prizeValue: 750,
+      maxRewardPerUser: 3,
+      maxRewardPerTxn: 1000,
+      minSpend: 5000,
+    },
     createdAt: '2026-10-20T11:00:00.000Z',
     updatedAt: '2026-10-20T11:00:00.000Z',
   },
@@ -493,6 +525,167 @@ export const campaignBudgetResponse: CampaignBudgetResponseDto = {
   escrowLocked: true,
   escrowEntryReference: 'ESC_KM4D82_E7F8A1B2',
   nextStep: 'START_CAMPAIGN',
+}
+
+export const rewardTemplateResponse: RewardTemplateResponseDto = {
+  id: 'tpl_123',
+  reference: 'RWT_MI8K2Q_4F1A9C2B',
+  merchantId: 'USR_MERCHANT_123',
+  name: 'Spend ₦25k, earn 1,000 points',
+  rewardDirection: 'BACKWARD_REWARD',
+  ruleType: 'BY_VALUE',
+  ruleConfig: {
+    frequencyCount: 3,
+    frequencyWindowDays: 30,
+    valueThreshold: 10000,
+    durationDays: 60,
+    eventKind: 'BIRTHDAY',
+    eventDate: '2026-12-25T00:00:00.000Z',
+    gamificationTrigger: 'REVIEW',
+    inactivityDays: 45,
+    inactivityDaysMin: 7,
+    inactivityDaysMax: 14,
+    deadTimeDaysOfWeek: [
+      'TUESDAY',
+      'WEDNESDAY',
+    ],
+    deadTimeStartHourUtc: 14,
+    deadTimeEndHourUtc: 17,
+    minSpend: 2000,
+  },
+  prizeType: 'POINTS',
+  prizeValue: 1000,
+  giftDetails: {
+    isPhysical: true,
+    name: 'Branded T-Shirt',
+    description: 'Size L, 100% cotton',
+    deliveryInstructions: 'Collect at store counter with receipt',
+  },
+  couponDetails: {
+    couponCode: 'SAVE20',
+    expiryDays: 14,
+    discountPercent: 20,
+  },
+  raffleDetails: {
+    ticketCount: 1,
+    prizeDescription: 'Win a brand new generator in our end-of-year draw',
+  },
+  maxRewardPerUser: 1,
+  maxRewardPerTxn: 1000,
+  version: 1,
+  status: 'ACTIVE',
+  linkedRewardCount: 2,
+  createdAt: '2026-11-20T09:00:00.000Z',
+  updatedAt: '2026-11-20T09:00:00.000Z',
+}
+
+export const listRewardTemplatesResult: RewardListRewardTemplatesResult = [
+  {
+    id: 'tpl_123',
+    reference: 'RWT_MI8K2Q_4F1A9C2B',
+    merchantId: 'USR_MERCHANT_123',
+    name: 'Spend ₦25k, earn 1,000 points',
+    rewardDirection: 'BACKWARD_REWARD',
+    ruleType: 'BY_VALUE',
+    ruleConfig: {
+      frequencyCount: 3,
+      frequencyWindowDays: 30,
+      valueThreshold: 10000,
+      durationDays: 60,
+      eventKind: 'BIRTHDAY',
+      eventDate: '2026-12-25T00:00:00.000Z',
+      gamificationTrigger: 'REVIEW',
+      inactivityDays: 45,
+      inactivityDaysMin: 7,
+      inactivityDaysMax: 14,
+      deadTimeDaysOfWeek: [
+        'TUESDAY',
+        'WEDNESDAY',
+      ],
+      deadTimeStartHourUtc: 14,
+      deadTimeEndHourUtc: 17,
+      minSpend: 2000,
+    },
+    prizeType: 'POINTS',
+    prizeValue: 1000,
+    giftDetails: {
+      isPhysical: true,
+      name: 'Branded T-Shirt',
+      description: 'Size L, 100% cotton',
+      deliveryInstructions: 'Collect at store counter with receipt',
+    },
+    couponDetails: {
+      couponCode: 'SAVE20',
+      expiryDays: 14,
+      discountPercent: 20,
+    },
+    raffleDetails: {
+      ticketCount: 1,
+      prizeDescription: 'Win a brand new generator in our end-of-year draw',
+    },
+    maxRewardPerUser: 1,
+    maxRewardPerTxn: 1000,
+    version: 1,
+    status: 'ACTIVE',
+    linkedRewardCount: 2,
+    createdAt: '2026-11-20T09:00:00.000Z',
+    updatedAt: '2026-11-20T09:00:00.000Z',
+  },
+]
+
+export const deleteRewardTemplateResult: DeleteRewardTemplateResultDto = {
+  outcome: 'ARCHIVED',
+  template: {
+    id: 'tpl_123',
+    reference: 'RWT_MI8K2Q_4F1A9C2B',
+    merchantId: 'USR_MERCHANT_123',
+    name: 'Spend ₦25k, earn 1,000 points',
+    rewardDirection: 'BACKWARD_REWARD',
+    ruleType: 'BY_VALUE',
+    ruleConfig: {
+      frequencyCount: 3,
+      frequencyWindowDays: 30,
+      valueThreshold: 10000,
+      durationDays: 60,
+      eventKind: 'BIRTHDAY',
+      eventDate: '2026-12-25T00:00:00.000Z',
+      gamificationTrigger: 'REVIEW',
+      inactivityDays: 45,
+      inactivityDaysMin: 7,
+      inactivityDaysMax: 14,
+      deadTimeDaysOfWeek: [
+        'TUESDAY',
+        'WEDNESDAY',
+      ],
+      deadTimeStartHourUtc: 14,
+      deadTimeEndHourUtc: 17,
+      minSpend: 2000,
+    },
+    prizeType: 'POINTS',
+    prizeValue: 1000,
+    giftDetails: {
+      isPhysical: true,
+      name: 'Branded T-Shirt',
+      description: 'Size L, 100% cotton',
+      deliveryInstructions: 'Collect at store counter with receipt',
+    },
+    couponDetails: {
+      couponCode: 'SAVE20',
+      expiryDays: 14,
+      discountPercent: 20,
+    },
+    raffleDetails: {
+      ticketCount: 1,
+      prizeDescription: 'Win a brand new generator in our end-of-year draw',
+    },
+    maxRewardPerUser: 1,
+    maxRewardPerTxn: 1000,
+    version: 1,
+    status: 'ACTIVE',
+    linkedRewardCount: 2,
+    createdAt: '2026-11-20T09:00:00.000Z',
+    updatedAt: '2026-11-20T09:00:00.000Z',
+  },
 }
 
 export const campaignEvaluationResponse: CampaignEvaluationResponseDto = {
@@ -588,6 +781,17 @@ export const queueStatusResponse: QueueStatusResponseDto = {
     completed: 0,
     failed: 0,
   },
+  outbox: {
+    pending: 0,
+    held: 12,
+    delivered: 340,
+    failed: 0,
+  },
+  delivery: {
+    CARD: true,
+    POINTS: false,
+    NOTIFICATIONS: false,
+  },
 }
 
 export const queueSweepResult: QueueSweepResultDto = {
@@ -618,6 +822,14 @@ export const escrowAuditResult: EscrowAuditResultDto = {
 export const progressArchivalResult: ProgressArchivalResultDto = {
   recordsArchived: 140,
   sweptAt: '2026-10-20T09:00:00.000Z',
+}
+
+export const replayOutboxResult: ReplayOutboxResultDto = {
+  mode: 'bullmq-redis',
+  requeued: 40,
+  delivered: 0,
+  failed: 0,
+  held: 12,
 }
 
 export const raffleDrawResult: RaffleDrawResultDto = {
